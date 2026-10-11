@@ -1,11 +1,68 @@
-<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="panel.css"></head>
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="panel.css">
+</head>
 <body>
-<header><span id="title">Hermes</span><button id="clear" title="New conversation">New</button><a href="options.html" target="_blank">⚙</a></header>
-<div id="page"></div>
-<main id="log"></main>
-<form id="f">
-  <label><input type="checkbox" id="inc" checked> include page</label>
-  <textarea id="q" rows="3" placeholder="Ask about this page… (Enter to send, Shift+Enter newline)"></textarea>
-  <button id="send">Send</button>
+<header class="bar">
+  <div class="brand">
+    <img src="icons/icon-32.png" alt="" class="logo">
+    <div class="brand-text">
+      <span class="name">Hermes</span>
+      <span class="status" id="status"><i class="dot"></i><span id="statusText">Ready</span></span>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="icon-btn" id="clear" title="New conversation" aria-label="New conversation">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="icon-btn" id="settings" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<section class="page-card" id="pageCard">
+  <img id="favicon" class="favicon" alt="">
+  <div class="page-meta">
+    <div class="page-title" id="pageTitle">—</div>
+    <div class="page-host" id="pageHost"></div>
+  </div>
+  <label class="switch" title="Attach this page's text (and any selection) to your question">
+    <input type="checkbox" id="inc" checked>
+    <span class="track"><span class="thumb"></span></span>
+    <span class="switch-label">Page</span>
+  </label>
+</section>
+
+<main id="log" aria-live="polite">
+  <div class="empty" id="empty">
+    <img src="icons/icon-128.png" alt="" class="empty-logo">
+    <h2>Ask about this page</h2>
+    <p>Sorrel reads the page you're on (and anything you've selected) when <b>Page</b> is on.</p>
+    <div class="chips">
+      <button class="chip" data-q="Summarise this page in a few bullet points.">Summarise</button>
+      <button class="chip" data-q="What are the key takeaways here?">Key takeaways</button>
+      <button class="chip" data-q="Explain the selected text in plain language.">Explain selection</button>
+      <button class="chip" data-q="What's missing or questionable in this page's argument?">Critique</button>
+    </div>
+  </div>
+</main>
+
+<form id="f" class="composer">
+  <div class="input-wrap">
+    <textarea id="q" rows="1" placeholder="Ask Hermes…" autofocus></textarea>
+    <button type="submit" id="send" class="send" title="Send (Enter)" aria-label="Send">
+      <svg class="i-send" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      <svg class="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+    </button>
+  </div>
+  <div class="hint"><kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline · <kbd>Esc</kbd> stop</div>
 </form>
-<script src="panel.js"></script></body></html>
+
+<script src="markdown.js"></script>
+<script src="panel.js"></script>
+</body>
+</html>
