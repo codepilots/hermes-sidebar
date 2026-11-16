@@ -86,6 +86,48 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .msg.err .body{background:var(--err-bg);color:var(--err-ink);border:1px solid var(--err-border);border-radius:10px;padding:8px 10px;font-size:13px}
 .stopped{font-size:11px;color:var(--faint);font-style:italic}
 
+/* browser tools */
+.tools-state{font-size:10.5px;color:var(--faint);display:flex;align-items:center;gap:5px}
+.tools-state::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--faint)}
+.tools-state.on::before{background:var(--ok)}
+.tools-state.wait::before{background:var(--warn)}
+.tools-state.bad::before{background:var(--err-ink)}
+.calls:empty{display:none}
+.calls{display:flex;flex-direction:column;gap:6px;margin:2px 0 8px}
+.call-line{display:flex;align-items:baseline;gap:6px;font-size:11.5px;color:var(--muted);min-width:0}
+.call-name{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:0 5px;flex:none}
+.call-what{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--faint)}
+.call-st{flex:none}
+.call-line.ok .call-st{color:var(--ok)}
+.call-line.bad .call-st{color:var(--err-ink);cursor:help}
+.confirm{border:1px solid var(--accent);background:var(--surface);border-radius:12px;padding:10px;box-shadow:var(--shadow)}
+.confirm-head{font-weight:600;font-size:13px}
+.confirm-where{font-size:11.5px;color:var(--muted);margin:1px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.confirm-args{margin:0 0 8px;max-height:220px;overflow:auto;background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:8px;font:12px/1.45 var(--mono);white-space:pre-wrap;word-break:break-word}
+.confirm-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.confirm-review{font-size:11.5px;margin:0 0 6px;padding:4px 8px;border-radius:7px;background:var(--surface-2);color:var(--muted)}
+.confirm-review.escalate,.confirm-review.deny{background:var(--err-bg);color:var(--err-ink)}
+.confirm.flagged{border-color:var(--err-ink)}
+.confirm.flagged .confirm-review{font-weight:600}
+.body .pii{background:var(--accent-soft);border-bottom:1px dashed var(--accent);border-radius:3px;padding:0 2px;cursor:help}
+.body .pii.shared{border-bottom-style:solid}
+.confirm-review.pii-use{background:var(--accent-soft);color:var(--text)}
+.reveal-list{display:flex;flex-direction:column;gap:4px;margin:2px 0 8px}
+.reveal-item{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:center;font-size:12.5px;background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:5px 8px;cursor:pointer}
+.reveal-item code{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.reveal-item span{word-break:break-all}
+.reveal-item input,.reveal-always input{accent-color:var(--accent)}
+.reveal-always{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin:0 0 8px}
+.call-via{flex:none;font-size:10.5px;color:var(--faint);border:1px solid var(--border);border-radius:999px;padding:0 6px;cursor:help}
+.confirm-row button{border-radius:8px;padding:5px 14px;cursor:pointer;font-weight:600;font-size:12.5px;border:1px solid var(--border);background:var(--surface)}
+.confirm-row .btn-allow{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.confirm-row button:disabled{opacity:.45;cursor:default}
+.confirm-note{font-size:11.5px;color:var(--muted);margin-left:auto}
+.confirm.done{border-color:var(--border);box-shadow:none}
+.confirm.done .confirm-args{max-height:60px}
+.confirm.deny .confirm-note,.confirm.cancelled .confirm-note{color:var(--err-ink)}
+.confirm.allow .confirm-note{color:var(--ok)}
+
 /* markdown */
 .body > :first-child{margin-top:0}.body > :last-child{margin-bottom:0}
 .body p{margin:0 0 .6em}
@@ -108,6 +150,29 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .code-head button:hover{background:var(--surface-2);color:var(--text)}
 .code pre{margin:0;padding:10px;overflow-x:auto;font:12.5px/1.5 var(--mono)}
 .code pre code{background:none;border:0;padding:0;font-size:inherit}
+.body h5,.body h6{font-size:.92em;margin:.8em 0 .3em;font-weight:650;color:var(--muted)}
+.body ul ul,.body ul ol,.body ol ul,.body ol ol{margin:.15em 0 .2em}
+.body li > p{margin:0 0 .3em}
+.body li:has(> input[type=checkbox]){list-style:none;margin-left:-1.2em}
+.body input[type=checkbox]{accent-color:var(--accent);margin:0 .45em 0 0;vertical-align:-1px}
+.body img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border);display:block;margin:.3em 0 .6em}
+.body del{color:var(--faint)}
+.body th[align=center],.body td[align=center]{text-align:center}
+.body th[align=right],.body td[align=right]{text-align:right}
+.body pre:not(.code pre){background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:10px;overflow-x:auto;font:12.5px/1.5 var(--mono)}
+
+/* highlight.js tokens, in the panel's palette */
+:root{--hl-kw:#a6407a;--hl-str:#3f7d3a;--hl-num:#b5651d;--hl-fn:#2e6aa8;--hl-cm:#9a9188;--hl-tag:#b85c38;--hl-attr:#7a5c2e}
+@media (prefers-color-scheme:dark){:root{--hl-kw:#e08cc0;--hl-str:#9fcf8a;--hl-num:#f0a96c;--hl-fn:#8cb8ea;--hl-cm:#756d64;--hl-tag:#f09a74;--hl-attr:#d9b98a}}
+.hljs-keyword,.hljs-selector-tag,.hljs-built_in,.hljs-literal,.hljs-type{color:var(--hl-kw)}
+.hljs-string,.hljs-regexp,.hljs-symbol,.hljs-addition{color:var(--hl-str)}
+.hljs-number,.hljs-variable.constant_{color:var(--hl-num)}
+.hljs-title,.hljs-title.function_,.hljs-title.class_,.hljs-section{color:var(--hl-fn)}
+.hljs-comment,.hljs-quote,.hljs-meta{color:var(--hl-cm);font-style:italic}
+.hljs-name,.hljs-tag,.hljs-selector-class,.hljs-selector-id{color:var(--hl-tag)}
+.hljs-attr,.hljs-attribute,.hljs-property,.hljs-params{color:var(--hl-attr)}
+.hljs-deletion{color:var(--err-ink)}
+.hljs-emphasis{font-style:italic}.hljs-strong{font-weight:650}
 
 .typing{display:inline-flex;gap:4px;padding:6px 0}
 .typing i{width:6px;height:6px;border-radius:50%;background:var(--faint);animation:bounce 1.2s infinite ease-in-out}

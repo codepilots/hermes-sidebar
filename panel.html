@@ -12,6 +12,7 @@
     <div class="brand-text">
       <span class="name">Hermes</span>
       <span class="status" id="status"><i class="dot"></i><span id="statusText">Ready</span></span>
+      <span class="tools-state off" id="toolsState">Browser tools off</span>
     </div>
   </div>
   <div class="actions">
@@ -62,7 +63,15 @@
   <div class="hint"><kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline · <kbd>Esc</kbd> stop</div>
 </form>
 
+<script src="vendor/marked.umd.js"></script>
+<script src="vendor/purify.min.js"></script>
+<script src="vendor/highlight.min.js"></script>
 <script src="markdown.js"></script>
+<script src="vendor/arcjet-redact.js"></script>
+<script src="vendor/compromise.js"></script>
+<script src="redactor.js"></script>
+<script src="outrigger.js"></script>
+<script src="browser-tools.js"></script>
 <script src="panel.js"></script>
 </body>
 </html>

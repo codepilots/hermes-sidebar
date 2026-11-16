@@ -24,9 +24,17 @@
   .btn:hover{background:var(--surface-2)}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
   .btn.primary:hover{background:var(--accent-2)}
+  .toggle{display:flex!important;align-items:center;gap:8px;cursor:pointer}
+  .toggle input{accent-color:var(--accent);width:15px;height:15px}
   #st{font-size:12.5px;margin-left:auto;color:var(--muted)}
   #st.ok{color:var(--ok)} #st.bad{color:var(--err-ink)}
   code{font-family:var(--mono);font-size:.9em;background:var(--code-bg);border:1px solid var(--border);border-radius:4px;padding:0 .3em}
+  .cats{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin:8px 0 10px}
+  .cats label{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;margin:0}
+  .cats input{accent-color:var(--accent)}
+  .cats.off{opacity:.5}
+  label.sub{font-size:12px;font-weight:600;margin:6px 0 4px}
+  .row textarea{flex:1;border:0;outline:0;background:transparent;color:var(--text);font:12.5px/1.4 var(--mono);padding:8px 11px;resize:vertical}
 </style>
 </head>
 <body>
@@ -49,12 +57,31 @@
     </div>
     <small><code>API_SERVER_KEY</code> from <code>~/.hermes/.env</code></small>
   </div>
+  <div class="field">
+    <label class="toggle"><input type="checkbox" id="browserTools"> Let Hermes use this browser</label>
+    <small>Needs the <code>outrigger</code> plugin on the gateway. Hermes can read the current page and list tabs on its own;
+      running code, clicking, filling forms and opening pages always asks you first.</small>
+  </div>
+  <div class="field">
+    <label class="toggle"><input type="checkbox" id="reviewerAuto"> Skip the prompt when Hermes's reviewer approves</label>
+    <small>For clicking, filling and opening pages only. Running code always asks, unless you choose
+      "Allow running code on this site" for the conversation. Reviewer denials are always blocked.</small>
+  </div>
+  <div class="field">
+    <label class="toggle"><input type="checkbox" id="redact"> Hide personal data from Hermes</label>
+    <small>Replaced with placeholders like <code>⟦EMAIL_1⟧</code> before anything is sent. Browser actions still use the real
+      values on this device; Hermes asks with a <code>reveal</code> prompt if it needs one elsewhere. Best effort, not a guarantee.</small>
+    <div class="cats" id="redactCats"></div>
+    <label for="redactSkip" class="sub">Don't redact on these sites (one per line)</label>
+    <div class="row"><textarea id="redactSkip" rows="3" spellcheck="false" placeholder="crm.example.com"></textarea></div>
+  </div>
   <div class="footer">
     <button class="btn primary" id="save">Save</button>
     <button class="btn" id="test">Test connection</button>
     <span id="st"></span>
   </div>
 </div>
+<script src="redactor.js"></script>
 <script src="options.js"></script>
 </body>
 </html>
