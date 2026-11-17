@@ -6,7 +6,7 @@ hermes-outrigger plugin (tools: `get_page`, `get_selection`, `list_tabs`,
 reviewer). Ranked by how much they address problems seen in real use.
 
 Status: all implemented (2026-11-17). 13 phase 2 became the Outrigger platform
-(hermes-outrigger docs/platform.md, P1-P4); phase 1's header picker is covered by /model.; 4–11 are proposals.
+(hermes-outrigger docs/platform.md, P1-P4); phase 1's header picker is covered by /model. 15 (scheduled browser scripts) and 16 (the agent's name) are proposed.
 
 ---
 
@@ -379,3 +379,244 @@ The file handling, versions and conflict handling with Obsidian, locks, and the
 Hermes side (the note's own chat on the Outrigger platform, and the scoped
 `notebook_read` / `notebook_edit` tools) live in the outrigger plugin. Full
 design: `hermes-outrigger/docs/notebook.md` (milestones N1-N4).
+
+## 15. Scheduled browser scripts ("browser cron")
+
+Date: 2026-11-17. Status: proposed.
+
+Hermes sets a small script running in your browser on a schedule. The script
+does the cheap, repetitive part: load a page, read a price, check a
+dashboard, look for a reply. It wakes Hermes only when there's something to
+act on. Examples:
+
+- "Check this product page every hour; tell me if it drops below £50."
+- "Every weekday at 9:00, read my team's status board and summarise what
+  changed."
+- "Watch this PR page every 10 minutes and ping me when CI goes green."
+
+### Why in the browser, not Hermes's own cron
+
+Hermes's `cronjob` tool runs on the gateway. To use the browser it would need
+a sidebar attached and bound to the cron session, which never is. It would
+also run a full model turn every time, even when nothing changed. A browser
+schedule:
+
+- runs with your logins;
+- costs nothing while the answer is "no change";
+- wakes Hermes only on a real event.
+
+### Tools (sidebar)
+
+**`schedule_script`** (confirm class "schedules", never auto-approved).
+
+Arguments:
+
+| Argument | Meaning |
+|---|---|
+| `name` | short label, e.g. `price-watch` |
+| `script` | page JavaScript, the same as `run_js`: a body that may `await` and `return`s a JSON value |
+| `target` | `{url}` to open in a background tab for the run, or `{match}` (a URL pattern) to use an open tab |
+| `schedule` | `{every_minutes}` (at least 5 by default), `{cron: "0 9 * * 1-5"}` (5 fields, local time), or `{at}` (one-off ISO time) |
+| `wake` | `on_change` (default: the result differs from last time), `when_true` (the script returns `{wake: true, summary}`), `always`, or `never` (log only) |
+| `instruction` | what Hermes should do when woken; stored with the schedule and included in the wake message |
+| `expires` | default 30 days; `max_runs` is optional |
+
+**`list_schedules`** (auto) shows name, site, schedule, last and next run, the
+last result and whether it is paused.
+
+**`cancel_schedule {name}`** (auto: removing is always safe).
+**`pause_schedule` / `resume_schedule`** (auto).
+
+### How a run works
+
+1. **Waking up.** `chrome.alarms` wakes the service worker on time. Missed
+   runs (laptop asleep) collapse to a single run on wake. Alarms are
+   persistent and survive browser restarts.
+2. **Finding the tab.** For `{url}`, a background tab is opened in a
+   minimized "Hermes" window and closed after the run. For `{match}`, the
+   oldest open tab that matches is used; if none is open, the run is
+   skipped.
+3. **Checking the site.** The script runs only if the tab's origin still
+   matches the one approved. A redirect elsewhere means the run is skipped
+   and logged.
+4. **Running.** The script runs through `chrome.debugger` `Runtime.evaluate`,
+   like `run_js`. MV3 forbids `eval` in extension pages, and page CSPs block
+   `new Function`. Runs time out after 30 s and results are capped at 20 KB.
+5. **Recording.** Personal data in the result is redacted under the usual
+   settings. The result is kept locally: the last 20 runs per schedule.
+6. **Waking Hermes.** If the `wake` condition holds, the result goes to
+   Hermes (next section).
+
+### Waking Hermes
+
+**Delivery.**
+- The service worker opens its own short-lived outrigger connection, as
+  client `hermes-sidebar-scheduler` with the `chat` capability, and sends a
+  `chat.send` to the chat the schedule was created in. That runs a Hermes turn:
+  ```
+  [Scheduled check "price-watch" · 2026-11-18 09:00 · example.com]
+  Result (untrusted page data): {"price": 47.99, "was": 52.00}
+  Your instruction when you scheduled this: tell me if it drops below £50.
+  ```
+- Hermes's reply appears in that conversation, as a desktop notification
+  (proposal 8), and in the panel when you next open it.
+
+**Offline.** If the gateway is unreachable, results queue locally (50 at
+most) and are delivered on reconnect, marked as late.
+
+**Cost cap.** At most 24 wakes a day per schedule and 100 overall (settings).
+Beyond that, results are only logged and you get a notification that the
+cap was hit.
+
+### Safety
+
+A schedule is persistent code execution in your logged-in browser, so it
+asks more of you than `run_js`:
+
+- **Creation.** You approve every schedule on a card that shows the name, site,
+  schedule, wake mode, instruction and the **full script**. The approval
+  covers that script's hash on that origin only. Any change needs a new card,
+  and the reviewer can't auto-approve schedules.
+- **Unattended turns are narrowed (plugin).** A woken turn has nobody
+  watching, and its input is page data that could contain prompt injection.
+  - The plugin marks scheduler chats (chat id prefix `sched:`).
+  - Its `toolsets_for_source()` gives those turns `scheduled_toolsets`
+    (default `[web, outrigger, no_mcp]`) even for the owner, so a page
+    can't steer an unattended turn into the terminal.
+  - Browser actions in that turn still need a card. Nobody is there, so the
+    card waits with a notification and the call times out if ignored.
+- **Limits.**
+  - At most 20 schedules.
+  - The minimum interval is 5 minutes. It can go down to 1, since
+    `chrome.alarms` allows 30 s.
+  - Schedules expire after 30 days unless renewed, and an expiry notice
+    shows a day before.
+- **Visibility.**
+  - Settings gets a "Schedules" section: each schedule with its script, last
+    result and next run, plus run now, pause, edit (re-approve) and delete.
+  - A "Pause all" kill switch, also on the action icon's right-click menu.
+  - A badge on the toolbar icon while any schedule is active.
+- **The debugger banner.** `chrome.debugger` shows a "started debugging this
+  browser" banner during each run. It's honest, but noisy for frequent
+  schedules; S3 looks at quieter ways to run scripts.
+
+### Plugin side
+
+- Scheduler chats are recognised by the `sched:` chat id prefix. They get
+  `scheduled_toolsets` through `toolsets_for_source()`, the same public hook
+  used for paired users.
+- A `scheduled_wakes_per_hour` cap (default 20) is enforced on the gateway
+  too, so a buggy or compromised client can't run up model costs.
+- The owner's `HOME` chat isn't used. Wakes go to the schedule's own
+  conversation, so context stays together.
+
+### Phases
+
+- **S1, schedules and runs, without waking Hermes.**
+  - The tools, approval card, alarms, runner and local results log.
+  - The settings section and kill switch.
+  - Hermes can create schedules and read results with `list_schedules`.
+- **S2, waking Hermes.**
+  - The background connection, `wake` conditions and the offline queue.
+  - Notifications, and the plugin's `scheduled_toolsets` and wake cap.
+- **S3, more.**
+  - `cron` syntax and `{at}` one-offs.
+  - Per-run diffs ("what changed" fed to Hermes).
+  - Quieter execution for allow-listed sites: a content script with fixed
+    extractors, such as CSS selectors, instead of free JavaScript.
+
+### Open questions
+
+- Should schedules be allowed to act (click or fill), or only read? Proposed:
+  read-only in S1 and S2. Acting goes through a woken Hermes turn, with
+  cards.
+- Should runs use a separate minimized window, or a tab group in the current
+  window? A minimized window is less intrusive, but some sites throttle
+  background windows.
+- Should the scheduler's background connection stay open while schedules
+  exist? That's simpler, but MV3 service workers are short-lived. Proposed:
+  connect per wake.
+
+### Testing
+
+- **Fake timers:** alarms fire, missed runs collapse, the origin check holds
+  across redirects, and runs time out.
+- **Wake conditions:** `on_change`, `when_true`, `always` and `never`, plus
+  the cost caps.
+- **End to end:** the real extension, with the stand-in gateway and a local
+  test page whose "price" changes. A wake reaches the platform as a
+  `sched:` chat, with narrowed tools and a notification.
+
+## 16. Use the agent's name, not just "Hermes"
+
+Date: 2026-11-17. Status: proposed.
+
+Your agent has a name: Sorrel, from `SOUL.md`. The sidebar still says "Ask
+Hermes…", "Hermes is working on…" and so on, and the manifest and README
+hard-code "Hermes (Sorrel)". Instead, the plugin tells clients the agent's
+name and the interface uses it everywhere.
+
+### Where the name comes from
+
+- **Plugin setting `agent_name`** (and optional `agent_avatar`, an emoji or
+  `https` image URL). It's explicit, and it uses only public APIs.
+- **Not parsed from `SOUL.md`.** That's free text: "You are Sorrel (she/her),
+  …" could change, or name other agents.
+- **Not read from Hermes's skin branding.** Hermes has a branding
+  `agent_name`, but only through `hermes_cli.skin_engine`, which isn't part
+  of the plugin API. If upstream adds a public accessor (for example
+  `ctx.branding("agent_name")`), the setting would default to it. That could
+  be raised alongside the command-catalog issue (#149673).
+
+### Protocol
+
+`welcome` gains `agent: {name, avatar?}`. The default name is "Hermes".
+Clients cache it in `chrome.storage` so the interface is named correctly
+before connecting and while offline.
+
+### Sidebar: where the name appears
+
+- **Panel:**
+  - the input placeholder ("Ask Sorrel…");
+  - the empty state;
+  - the lock bar ("Sorrel is working on…") and "Undo Sorrel";
+  - note prompts ("What should Sorrel do with it?").
+- **Prompt cards:** "Sorrel asks", "Sorrel wants to run a command".
+- **Right-click menu:** "Ask Sorrel about this page", and the other
+  entries. The service worker updates the titles with
+  `chrome.contextMenus.update` when the name changes.
+- **Toolbar icon:** the tooltip, via `chrome.action.setTitle`.
+- **Notifications** ("Sorrel replied").
+- **Settings descriptions** ("Let Sorrel use this browser").
+
+**Unchanged.** References to the software, not the agent: the extension's
+name "Hermes Sidebar", "Hermes gateway", "Hermes host", the outrigger plugin
+and `API_SERVER_KEY`. The manifest's `name` and `description` are static and
+can't change at runtime. They become neutral ("Hermes Sidebar: ask your
+Hermes agent about the page you're reading").
+
+**Pronouns.** The interface is written without pronouns for the agent ("Sorrel
+is working on…", not "she is…"). The name alone doesn't say how the agent is
+referred to, and pronoun-free text works for any name.
+
+### Plugin side
+
+- The `agent_name` and `agent_avatar` settings, and the `welcome.agent` field.
+- `platform_hint` and the notebook command messages already say "Hermes" to
+  the model; those stay as they are. The model knows its own name from
+  `SOUL.md`.
+
+### Phases
+
+- **A1:**
+  - the setting and `welcome.agent`;
+  - the sidebar strings, plus the context menu and toolbar title updates;
+  - the manifest and README made neutral.
+- **A2:** default to Hermes's branding name if a public API appears upstream.
+
+### Testing
+
+- **Unit:** `welcome.agent` with and without the setting.
+- **Extension:** with `agent_name: Sorrel`, the placeholder, menus, the
+  action title, cards, the lock bar and notifications all say Sorrel. After
+  a reload while offline, the cached name is still used.
