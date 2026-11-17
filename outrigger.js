@@ -12,9 +12,12 @@ class Outrigger {
    * @param {Function} o.onCall    async ({call_id, tool, args, deadline_ms, signal}) => {ok, content?, error?}
    * @param {Function} o.onCancel  (call_id, reason) => void
    * @param {Function} o.onStatus  (state, detail) => void; state: off|connecting|attached|offline
+   * @param {Function} o.onChat    (frame) => void for Outrigger-platform chat.* frames
+   * @param {Function} o.onWelcome (welcome) => void, after every (re)attach
    */
-  constructor({ tools, onCall, onCancel, onStatus }) {
-    Object.assign(this, { tools, onCall, onCancel, onStatus });
+  constructor({ tools, onCall, onCancel, onStatus, onChat, onWelcome }) {
+    Object.assign(this, { tools, onCall, onCancel, onStatus, onChat, onWelcome });
+    this.platformAvailable = false;
     this.ws = null; this.cfg = null; this.stopped = true;
     this.attached = false; this.retry = 0; this.timer = 0; this.summary = '';
     this.inflight = new Map();   // call_id -> AbortController
@@ -70,7 +73,8 @@ class Outrigger {
     catch (e) { this._status('offline', e.message); return this._schedule(); }
     this.ws = ws;
     ws.onopen = () => this._send({
-      type: 'hello', protocol: 1,
+      // Protocol 2 adds the Outrigger platform: chat through Hermes's messaging pipeline.
+      type: 'hello', protocol: 2, capabilities: ['chat', 'edits'],
       client: { name: 'hermes-sidebar', version: chrome.runtime.getManifest().version,
                 kind: 'chromium-extension', label: 'Chromium side panel', concurrency: 1 },
       session_id: this.cfg.sessionId, tools: this.tools,
@@ -99,13 +103,20 @@ class Outrigger {
     this.inflight.clear();
   }
 
+  /** Outrigger platform: send a message (or slash command) to a chat. */
+  chatSend(chatId, text, clientMsgId) { this._send({ type: 'chat.send', chat_id: chatId, text, client_msg_id: clientMsgId }); }
+  chatStop(chatId) { this._send({ type: 'chat.stop', chat_id: chatId }); }
+  chatAttach(chatId) { this._send({ type: 'chat.attach', chat_id: chatId }); }
+
   _send(m) { if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m)); }
 
   _onMessage(m) {
     switch (m.type) {
       case 'welcome':
         this.attached = true; this.retry = 0; this.clientId = m.client_id;
+        this.platformAvailable = !!(m.platform && m.platform.available);
         this._status('attached');
+        try { this.onWelcome?.(m); } catch {}
         if (this.summary) this._send({ type: 'context.update', summary: this.summary });
         this.waiters.splice(0).forEach(w => w(true));
         break;
@@ -123,7 +134,10 @@ class Outrigger {
       }
       case 'error':
         console.warn('outrigger:', m.code, m.message);
+        try { this.onChat?.(m); } catch {}
         break;
+      default:
+        if (typeof m.type === 'string' && m.type.startsWith('chat.')) { try { this.onChat?.(m); } catch {} }
     }
   }
 

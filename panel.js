@@ -12,6 +12,17 @@ const DEFAULT_ENDPOINT = 'http://127.0.0.1:8642';
 const newSessionId = () => 'sidebar-' + crypto.randomUUID();
 let sessionId = newSessionId();
 let controller = null, lastQuestion = '', currentOut = null;
+// Outrigger platform: chat goes through Hermes's messaging pipeline (slash commands,
+// /model, …) over the outrigger connection, when the gateway offers it.
+const newChatId = () => 'c-' + crypto.randomUUID();
+let chatId = newChatId();
+let platformPref = true;      // settings: "Chat through the Outrigger platform"
+let platformBusy = false;     // a platform turn is in progress (typing/messages arriving)
+let platformIdle = 0;         // timer that ends the busy state after a quiet spell
+const platformMsgs = new Map(); // message_id -> { el, text }
+let platformFill = null;      // the pending reply bubble the next chat.message fills
+let pendingPage = new Map();  // client_msg_id -> page state to commit once accepted
+const usePlatform = () => platformPref && outrigger.attached && outrigger.platformAvailable;
 // "Allow <class> on <site>" grants for this conversation: "class|origin".
 let grants = new Set();
 // The page last attached in this conversation ({url, textHash, sel}). Hermes keeps the
@@ -42,6 +53,8 @@ const outrigger = new Outrigger({
   tools: BROWSER_TOOLS,
   onCall: handleCall,
   onCancel: (id, reason) => pendingCards.get(id)?.cancel(reason),
+  onChat: m => onChatFrame(m),
+  onWelcome: w => { if (w.platform?.available) outrigger.chatAttach(chatId); },
   onStatus: (state, detail) => {
     const [cls, text] = TOOL_LABEL[state] || TOOL_LABEL.off;
     const el = $('toolsState'); el.className = 'tools-state ' + cls; el.textContent = text;
@@ -62,8 +75,9 @@ async function loadRedaction() {
 
 async function syncOutrigger() {
   await loadRedaction();
-  const { endpoint = DEFAULT_ENDPOINT, key = '', browserTools = true } =
-    await chrome.storage.local.get(['endpoint', 'key', 'browserTools']);
+  const { endpoint = DEFAULT_ENDPOINT, key = '', browserTools = true, platformChat = true } =
+    await chrome.storage.local.get(['endpoint', 'key', 'browserTools', 'platformChat']);
+  platformPref = platformChat;
   if (!key || !browserTools) return outrigger.stop();
   outrigger.start({ endpoint, key, sessionId });
 }
@@ -72,6 +86,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   checkKey();
   if (changes.reviewerAuto) reviewerAuto = changes.reviewerAuto.newValue !== false;
   if (changes.endpoint || changes.key || changes.browserTools || changes.redact || changes.redactCats || changes.redactSkip) syncOutrigger();
+  if (changes.platformChat) platformPref = changes.platformChat.newValue !== false;
 });
 syncOutrigger();
 
@@ -441,19 +456,23 @@ async function revealCall(m) {
 
 /* ---------- composer ---------- */
 function autosize() { q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 180) + 'px'; updateSend(); }
-function updateSend() { sendBtn.disabled = !controller && !q.value.trim(); }
+const isBusy = () => !!controller || platformBusy;
+function updateSend() { sendBtn.disabled = !isBusy() && !q.value.trim(); }
+function stopTurn() { if (controller) controller.abort(); else if (platformBusy) outrigger.chatStop(chatId); }
 q.addEventListener('input', autosize);
 q.addEventListener('keydown', e => {
+  // On the platform you may send while Hermes works (the gateway queues or steers it).
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!controller) send(); }
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && controller) controller.abort(); });
-form.onsubmit = e => { e.preventDefault(); controller ? controller.abort() : send(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && isBusy()) stopTurn(); });
+form.onsubmit = e => { e.preventDefault(); (isBusy() && !q.value.trim()) ? stopTurn() : send(); };
 document.querySelectorAll('.chip').forEach(c => c.onclick = () => { q.value = c.dataset.q; send(); });
 $('settings').onclick = () => chrome.runtime.openOptionsPage();
 $('clear').onclick = () => {
   if (controller) controller.abort();
   for (const c of pendingCards.values()) c.cancel('cancelled');
   sessionId = newSessionId(); outrigger.bind(sessionId); grants = new Set(); lastSentPage = null; redactor.reset();
+  chatId = newChatId(); platformMsgs.clear(); platformFill = null; setPlatformBusy(false);
   log.querySelectorAll('.msg').forEach(m => m.remove()); empty.hidden = false; q.focus();
 };
 autosize();
@@ -464,6 +483,81 @@ function setBusy(on) {
   sendBtn.setAttribute('aria-label', on ? 'Stop' : 'Send');
   if (on) setStatus('busy', 'Thinking…'); else checkKey();
   updateSend();
+}
+
+/* ---------- Outrigger platform chat ---------- */
+function setPlatformBusy(on) {
+  clearTimeout(platformIdle);
+  if (platformBusy === on) { if (on) armIdle(); return; }
+  platformBusy = on;
+  document.body.classList.toggle('busy', on || !!controller);
+  sendBtn.title = on ? 'Stop (Esc)' : 'Send (Enter)';
+  if (on) { setStatus('busy', 'Working…'); armIdle(); } else { checkKey(); platformFill = null; }
+  updateSend();
+}
+// There is no explicit end-of-turn frame: Hermes sends typing while it works, so the
+// turn counts as done after a quiet spell following a reply.
+function armIdle() { clearTimeout(platformIdle); platformIdle = setTimeout(() => setPlatformBusy(false), 7000); }
+
+function sendViaPlatform(content, pageSent) {
+  const mid = 'm-' + crypto.randomUUID();
+  if (pageSent) pendingPage.set(mid, pageSent);
+  platformFill = addAssistant();
+  currentOut = platformFill;  // tool cards for this turn land here
+  setPlatformBusy(true);
+  outrigger.chatSend(chatId, content, mid);
+  q.focus();
+}
+
+const isStatusText = t => typeof t === 'string' && t.length <= 120 && !t.includes('\n') &&
+  /^\p{Extended_Pictographic}/u.test(t.trim());
+
+function onChatFrame(m) {
+  if (m.type === 'error') {
+    if (!platformBusy) return;
+    const el = platformFill || addAssistant();
+    el.classList.add('err'); el.querySelector('.body').textContent = m.message || m.code;
+    platformFill = null; setPlatformBusy(false);
+    return;
+  }
+  if (m.chat_id !== chatId) return;  // other chats (e.g. home) are not shown yet
+  if (m.type === 'chat.accepted') {
+    const p = pendingPage.get(m.client_msg_id);
+    if (p) { lastSentPage = p; pendingPage.delete(m.client_msg_id); }
+    return;
+  }
+  if (m.type === 'chat.typing') { if (platformBusy) armIdle(); else setPlatformBusy(true); return; }
+  if (m.type === 'chat.message' || m.type === 'chat.edit') {
+    let entry = platformMsgs.get(m.message_id);
+    // Hermes's mid-turn status sends ("🛶 outrigger_call...", "🧠 … recalled 1 memory") carry no
+    // public marker on plugin platforms, so a short one-line emoji-led message that arrives
+    // before this turn's reply is shown as a muted status line instead of a reply bubble.
+    if ((!entry && isStatusText(m.text) && platformBusy && platformFill && !platformFill.dataset.filled) || entry?.status) {
+      if (!entry) {
+        const line = document.createElement('div'); line.className = 'status-line';
+        platformFill.querySelector('.calls').appendChild(line);
+        entry = { el: line, status: true, text: '' };
+        platformMsgs.set(m.message_id, entry);
+      }
+      entry.text = m.text || ''; entry.el.textContent = entry.text;
+      if (platformBusy) armIdle();
+      toBottom();
+      return;
+    }
+    if (!entry) {
+      // The first reply of a turn fills the waiting bubble; later ones get their own.
+      const el = platformFill && platformFill.isConnected && !platformFill.dataset.filled ? platformFill : addAssistant();
+      el.dataset.filled = '1';
+      entry = { el, text: '' };
+      platformMsgs.set(m.message_id, entry);
+      if (el !== platformFill) platformFill = null;
+    }
+    entry.text = m.text || '';
+    const streaming = m.type === 'chat.edit' && !m.final;
+    renderInto(entry.el, entry.text || '…', streaming);
+    if (!streaming) addTools(entry.el, entry.text, false);
+    if (platformBusy) armIdle();
+  }
 }
 
 /* ---------- send ---------- */
@@ -478,8 +572,12 @@ async function send() {
     q.value = text; autosize(); return;
   }
 
+  // Decide platform vs Chat Completions only once the connection has had a moment.
+  if (platformPref && outrigger.state === 'connecting') await outrigger.ready(2000);
   let content = text, tag = '', pageSent = null;
-  if (inc.checked) {
+  // Slash commands go to Hermes as typed (no page attached), through the platform.
+  const isCommand = text.startsWith('/') && usePlatform();
+  if (inc.checked && !isCommand) {
     const p = await grab();
     const pageText = (p.text || '').slice(0, MAX);
     const textHash = await sha256(pageText);
@@ -503,6 +601,7 @@ async function send() {
   const red = await redactor.redact(content, { url: pageUrl });
   content = red.text;
   addUser(text, tag, red.found);
+  if (usePlatform()) return sendViaPlatform(content, pageSent);
 
   const out = addAssistant(); let acc = '', raf = 0;
   currentOut = out;

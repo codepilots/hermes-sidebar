@@ -5,7 +5,8 @@ hermes-outrigger plugin (tools: `get_page`, `get_selection`, `list_tabs`,
 `run_js`, `click`, `fill`, `open_url`; confirm cards, per-site grants, LLM
 reviewer). Ranked by how much they address problems seen in real use.
 
-Status: 1–3 and 12 implemented; 4–11 and 13 are proposals.
+Status: 1–3 and 12 implemented; 13 phase 2 in progress (Outrigger platform P1 done:
+chat and slash commands through the platform); 4–11 are proposals.
 
 ---
 

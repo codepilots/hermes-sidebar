@@ -16,6 +16,12 @@ A Chromium side panel for asking Hermes (Sorrel) about the page you're reading.
 - The API key is stored in `chrome.storage.local`.
 - The service worker strips the `Origin` header on calls to the local gateway (HTTP and WebSocket), because the gateway rejects unknown origins with 403.
 - Replies render as GitHub-flavoured Markdown (nested and task lists, tables with alignment, quotes, https images, syntax-highlighted code with a copy button) using vendored marked, DOMPurify and highlight.js (`vendor/`). Raw HTML in replies is shown as text, and output is sanitized.
+- With the outrigger plugin's **Outrigger platform** (default), chat goes over the
+  outrigger connection through Hermes's messaging pipeline, so Hermes slash
+  commands work (`/model`, `/new`, `/help`, `/stop`…) and are sent as typed, without
+  the page. Hermes's own progress messages show as muted status lines. Settings:
+  "Chat through the Outrigger platform"; without it (or without the platform) the
+  sidebar uses Chat Completions.
 - Each conversation has its own Hermes session (`X-Hermes-Session-Id`); Hermes keeps the history, and "New conversation" starts a new session.
 
 ## Browser tools (outrigger)

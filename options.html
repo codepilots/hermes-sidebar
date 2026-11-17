@@ -63,6 +63,11 @@
       running code, clicking, filling forms and opening pages always asks you first.</small>
   </div>
   <div class="field">
+    <label class="toggle"><input type="checkbox" id="platformChat"> Chat through the Outrigger platform</label>
+    <small>Messages go through Hermes's messaging pipeline, so slash commands (<code>/model</code>, <code>/new</code>, <code>/help</code>…)
+      work as on Discord. Needs the outrigger plugin's platform (on by default); otherwise the sidebar uses Chat Completions.</small>
+  </div>
+  <div class="field">
     <label class="toggle"><input type="checkbox" id="reviewerAuto"> Skip the prompt when Hermes's reviewer approves</label>
     <small>For clicking, filling and opening pages only. Running code always asks, unless you choose
       "Allow running code on this site" for the conversation. Reviewer denials are always blocked.</small>
