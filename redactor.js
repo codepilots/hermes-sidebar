@@ -85,6 +85,19 @@ class Redactor {
     this.always = new Set();   // placeholders the user lets Hermes have without asking
   }
 
+  /** Conversation state for chrome.storage.session (memory only, cleared with the browser). */
+  exportState() {
+    return { byPh: [...this.byPh], counters: this.counters, shared: [...this.shared], always: [...this.always] };
+  }
+
+  importState(s) {
+    this.reset();
+    if (!s || !Array.isArray(s.byPh)) return;
+    for (const [ph, e] of s.byPh) { this.byPh.set(ph, e); this.byValue.set(e.type + '\u0000' + e.value, ph); }
+    this.counters = { ...(s.counters || {}) };
+    this.shared = new Set(s.shared || []); this.always = new Set(s.always || []);
+  }
+
   configure({ enabled, cats, skip } = {}) {
     if (typeof enabled === 'boolean') this.settings.enabled = enabled;
     if (cats) this.settings.cats = { ...this.settings.cats, ...cats };

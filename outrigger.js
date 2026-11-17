@@ -74,7 +74,7 @@ class Outrigger {
     this.ws = ws;
     ws.onopen = () => this._send({
       // Protocol 2 adds the Outrigger platform: chat through Hermes's messaging pipeline.
-      type: 'hello', protocol: 2, capabilities: ['chat', 'edits', 'model_picker', 'choices', 'clarify', 'approvals'],
+      type: 'hello', protocol: 2, capabilities: ['chat', 'edits', 'model_picker', 'choices', 'clarify', 'approvals', 'media'],
       client: { name: 'hermes-sidebar', version: chrome.runtime.getManifest().version,
                 kind: 'chromium-extension', label: 'Chromium side panel', concurrency: 1 },
       session_id: this.cfg.sessionId, tools: this.tools,
@@ -107,6 +107,7 @@ class Outrigger {
   chatSend(chatId, text, clientMsgId) { this._send({ type: 'chat.send', chat_id: chatId, text, client_msg_id: clientMsgId }); }
   chatStop(chatId) { this._send({ type: 'chat.stop', chat_id: chatId }); }
   chatAttach(chatId) { this._send({ type: 'chat.attach', chat_id: chatId }); }
+  requestCommands() { this._send({ type: 'chat.commands' }); }
   chatAction(chatId, kind, id, value) { this._send({ type: 'chat.action', chat_id: chatId, kind, id, value }); }
 
   _send(m) { if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m)); }

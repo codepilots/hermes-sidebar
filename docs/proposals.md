@@ -5,8 +5,8 @@ hermes-outrigger plugin (tools: `get_page`, `get_selection`, `list_tabs`,
 `run_js`, `click`, `fill`, `open_url`; confirm cards, per-site grants, LLM
 reviewer). Ranked by how much they address problems seen in real use.
 
-Status: 1–3 and 12 implemented; 13 phase 2 largely done (Outrigger platform P1 and P2:
-chat, slash commands, model picker and prompt cards; autocomplete and history are P3); 4–11 are proposals.
+Status: 1–3 and 12 implemented; 13 phase 2 done (Outrigger platform P1-P3: chat, slash commands, prompt
+cards, autocomplete, media); 5 done (conversations survive closing the panel); 4–11 are proposals.
 
 ---
 
@@ -68,7 +68,7 @@ a card each time; filling a form is one card per field.
 Context-menu entries for selection, link and image: open the panel with the item
 attached as context. Uses `contextMenus`; no gateway changes. Low risk.
 
-## 5. Conversations that survive closing the panel
+## 5. Conversations that survive closing the panel — implemented
 
 Store `{sessionId, page state}` per window in `chrome.storage.session`; on open,
 reload the transcript from `GET /api/sessions/{id}/messages` and render it. Today

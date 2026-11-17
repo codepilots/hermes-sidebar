@@ -24,7 +24,14 @@ A Chromium side panel for asking Hermes (Sorrel) about the page you're reading.
   (provider, filter, model), `/reasoning` and similar show choice buttons, the
   `clarify` tool's questions get answer buttons (or checkboxes, plus "Other…"),
   and dangerous-command approvals show the full command with Hermes's own
-  approve/deny options. Settings:
+  approve/deny options.
+  Typing `/` opens an autocomplete menu of Hermes's commands (arrow keys, Tab or
+  Enter to complete). Images and files Hermes sends (e.g. `/save md`) appear
+  inline or as downloads.
+- The conversation survives closing the panel: it is kept in memory for this
+  browser session (`chrome.storage.session`, cleared when the browser closes),
+  along with the redaction map, and replies that arrive while the panel is closed
+  are shown when it reopens. "New conversation" clears it. Settings:
   "Chat through the Outrigger platform"; without it (or without the platform) the
   sidebar uses Chat Completions.
 - Each conversation has its own Hermes session (`X-Hermes-Session-Id`); Hermes keeps the history, and "New conversation" starts a new session.

@@ -54,7 +54,7 @@ const outrigger = new Outrigger({
   onCall: handleCall,
   onCancel: (id, reason) => pendingCards.get(id)?.cancel(reason),
   onChat: m => onChatFrame(m),
-  onWelcome: w => { if (w.platform?.available) outrigger.chatAttach(chatId); },
+  onWelcome: w => { if (w.platform?.available) { outrigger.chatAttach(chatId); outrigger.requestCommands(); } },
   onStatus: (state, detail) => {
     const [cls, text] = TOOL_LABEL[state] || TOOL_LABEL.off;
     const el = $('toolsState'); el.className = 'tools-state ' + cls; el.textContent = text;
@@ -459,12 +459,13 @@ function autosize() { q.style.height = 'auto'; q.style.height = Math.min(q.scrol
 const isBusy = () => !!controller || platformBusy;
 function updateSend() { sendBtn.disabled = !isBusy() && !q.value.trim(); }
 function stopTurn() { if (controller) controller.abort(); else if (platformBusy) outrigger.chatStop(chatId); }
-q.addEventListener('input', autosize);
+q.addEventListener('input', () => { autosize(); updateMenu(); });
 q.addEventListener('keydown', e => {
+  if (menuKey(e)) return;
   // On the platform you may send while Hermes works (the gateway queues or steers it).
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!controller) send(); }
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); hideMenu(); if (!controller) send(); }
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && isBusy()) stopTurn(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menuOpen() && isBusy()) stopTurn(); });
 form.onsubmit = e => { e.preventDefault(); (isBusy() && !q.value.trim()) ? stopTurn() : send(); };
 document.querySelectorAll('.chip').forEach(c => c.onclick = () => { q.value = c.dataset.q; send(); });
 $('settings').onclick = () => chrome.runtime.openOptionsPage();
@@ -474,6 +475,7 @@ $('clear').onclick = () => {
   sessionId = newSessionId(); outrigger.bind(sessionId); grants = new Set(); lastSentPage = null; redactor.reset();
   chatId = newChatId(); platformMsgs.clear(); platformFill = null; setPlatformBusy(false);
   log.querySelectorAll('.msg').forEach(m => m.remove()); empty.hidden = false; q.focus();
+  transcript = []; forget();
 };
 autosize();
 
@@ -639,6 +641,123 @@ function renderPrompt(m) {
   if (platformBusy) armIdle();
 }
 
+/* ---------- / autocomplete (Hermes commands, Outrigger platform) ---------- */
+let hermesCommands = [];  // from the plugin's build-time catalog (chat.commands)
+let menuItems = [], menuSel = 0;
+const cmdMenu = (() => {
+  const m = document.createElement('div'); m.id = 'cmdMenu'; m.className = 'cmd-menu'; m.hidden = true;
+  m.setAttribute('role', 'listbox'); form.prepend(m); return m;
+})();
+const menuOpen = () => !cmdMenu.hidden;
+function hideMenu() { cmdMenu.hidden = true; menuItems = []; }
+function updateMenu() {
+  const v = q.value;
+  if (!usePlatform() || !hermesCommands.length || !v.startsWith('/') || /\s/.test(v)) return hideMenu();
+  const f = v.slice(1).toLowerCase();
+  const starts = c => c.name.startsWith(f) || (c.aliases || []).some(a => a.startsWith(f));
+  const has = c => c.name.includes(f) || (c.description || '').toLowerCase().includes(f);
+  menuItems = [...hermesCommands.filter(starts), ...(f ? hermesCommands.filter(c => !starts(c) && has(c)) : [])].slice(0, 8);
+  if (!menuItems.length) return hideMenu();
+  menuSel = 0; renderMenu(); cmdMenu.hidden = false;
+}
+function renderMenu() {
+  cmdMenu.innerHTML = '';
+  menuItems.forEach((c, i) => {
+    const row = document.createElement('div'); row.className = 'cmd-item' + (i === menuSel ? ' sel' : '');
+    row.setAttribute('role', 'option');
+    const name = document.createElement('span'); name.className = 'cmd-name'; name.textContent = '/' + c.name;
+    const hint = document.createElement('span'); hint.className = 'cmd-hint'; hint.textContent = c.args_hint || '';
+    const desc = document.createElement('div'); desc.className = 'cmd-desc'; desc.textContent = c.description || '';
+    row.append(name, hint, desc);
+    row.onmousedown = ev => { ev.preventDefault(); menuSel = i; chooseMenu(); };
+    cmdMenu.append(row);
+  });
+}
+function chooseMenu() {
+  const c = menuItems[menuSel]; if (!c) return;
+  q.value = '/' + c.name + (c.args_hint ? ' ' : '');
+  hideMenu(); autosize(); q.focus();
+}
+// Returns true when the key was handled by the menu.
+function menuKey(e) {
+  if (!menuOpen()) return false;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); menuSel = (menuSel + (e.key === 'ArrowDown' ? 1 : -1) + menuItems.length) % menuItems.length; renderMenu(); return true;
+  }
+  if (e.key === 'Tab') { e.preventDefault(); chooseMenu(); return true; }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    // A command typed in full is sent; otherwise Enter completes the selection.
+    if (menuItems[menuSel] && q.value.slice(1).toLowerCase() === menuItems[menuSel].name) { hideMenu(); return false; }
+    e.preventDefault(); chooseMenu(); return true;
+  }
+  if (e.key === 'Escape') { e.preventDefault(); hideMenu(); return true; }
+  return false;
+}
+
+/* ---------- media from Hermes (images, files) ---------- */
+function renderMedia(m, restoring = false) {
+  const el = !restoring && platformFill && platformFill.isConnected && !platformFill.dataset.filled ? platformFill : addAssistant();
+  el.dataset.filled = '1';
+  if (el !== platformFill) platformFill = null;
+  const body = el.querySelector('.body'); body.textContent = '';
+  if (m.caption) { const c = document.createElement('p'); c.textContent = m.caption; body.append(c); }
+  let href = '';
+  if (m.data) {
+    try {
+      const bytes = Uint8Array.from(atob(m.data), ch => ch.charCodeAt(0));
+      href = URL.createObjectURL(new Blob([bytes], { type: m.mime || 'application/octet-stream' }));
+    } catch { href = ''; }
+  } else if (/^https?:\/\//.test(m.url || '')) href = m.url;
+  if (m.kind === 'image' && href) {
+    const img = document.createElement('img'); img.src = href; img.alt = m.name || 'image'; img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer'; body.append(img);
+  } else {
+    const a = document.createElement('a'); a.className = 'media-file';
+    a.textContent = '📎 ' + (m.name || 'file') + (href ? '' : ' (not kept after closing the panel)');
+    if (href) { a.href = href; if (m.data) a.download = m.name || 'file'; else { a.target = '_blank'; a.rel = 'noopener noreferrer'; } }
+    body.append(a);
+  }
+  toBottom();
+}
+
+/* ---------- conversation memory (chrome.storage.session: memory only) ---------- */
+let transcript = [];   // [{ role: 'user'|'assistant'|'media', text?, tag?, mid?, … }]
+let storeKey = null, saveTimer = 0;
+function remember(entry) {
+  if (entry.mid) {
+    const i = transcript.findIndex(t => t.mid === entry.mid);
+    if (i >= 0) { transcript[i] = entry; persist(); return; }
+  }
+  transcript.push(entry); persist();
+}
+function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 300); }
+async function save() {
+  if (!storeKey) return;
+  try {
+    await chrome.storage.session.set({ [storeKey]: { v: 1, chatId, sessionId, transcript: transcript.slice(-200),
+      redactor: redactor.exportState(), grants: [...grants], lastSentPage } });
+  } catch (e) { console.warn('could not keep the conversation', e); }
+}
+function forget() { if (storeKey) chrome.storage.session.remove(storeKey).catch(() => {}); }
+async function restore() {
+  let s = null;
+  try { s = (await chrome.storage.session.get(storeKey))[storeKey]; } catch {}
+  if (!s || s.v !== 1 || !Array.isArray(s.transcript) || !s.transcript.length) return;
+  chatId = s.chatId || chatId; sessionId = s.sessionId || sessionId;
+  redactor.importState(s.redactor); grants = new Set(s.grants || []); lastSentPage = s.lastSentPage || null;
+  transcript = s.transcript;
+  for (const t of transcript) {
+    if (t.role === 'user') addUser(t.text, t.tag);
+    else if (t.role === 'assistant') { const el = addAssistant(); el.dataset.filled = '1'; renderInto(el, t.text, false); addTools(el, t.text, false); }
+    else if (t.role === 'media') renderMedia(t, true);
+  }
+  // Point the connection at the restored conversation; replies that came while the
+  // panel was closed are delivered from the plugin's outbox on attach.
+  outrigger.bind(sessionId);
+  if (outrigger.attached && outrigger.platformAvailable) outrigger.chatAttach(chatId);
+}
+chrome.windows.getCurrent().then(w => { storeKey = 'conv-' + w.id; restore(); }).catch(() => {});
+
 const isStatusText = t => typeof t === 'string' && t.length <= 120 && !t.includes('\n') &&
   /^\p{Extended_Pictographic}/u.test(t.trim());
 
@@ -650,7 +769,9 @@ function onChatFrame(m) {
     platformFill = null; setPlatformBusy(false);
     return;
   }
+  if (m.type === 'chat.commands') { hermesCommands = Array.isArray(m.commands) ? m.commands : []; return; }
   if (m.chat_id !== chatId) return;  // other chats (e.g. home) are not shown yet
+  if (m.type === 'chat.media') { renderMedia(m); remember({ role: 'media', mid: m.message_id, kind: m.kind, name: m.name, url: m.url, caption: m.caption }); if (platformBusy) armIdle(); return; }
   if (m.type === 'chat.accepted') {
     const p = pendingPage.get(m.client_msg_id);
     if (p) { lastSentPage = p; pendingPage.delete(m.client_msg_id); }
@@ -687,7 +808,7 @@ function onChatFrame(m) {
     entry.text = m.text || '';
     const streaming = m.type === 'chat.edit' && !m.final;
     renderInto(entry.el, entry.text || '…', streaming);
-    if (!streaming) addTools(entry.el, entry.text, false);
+    if (!streaming) { addTools(entry.el, entry.text, false); remember({ role: 'assistant', text: entry.text, mid: m.message_id }); }
     if (platformBusy) armIdle();
   }
 }
@@ -733,6 +854,7 @@ async function send() {
   const red = await redactor.redact(content, { url: pageUrl });
   content = red.text;
   addUser(text, tag, red.found);
+  remember({ role: 'user', text, tag: tag + (red.found.length ? (tag ? ' · ' : '') + `🛡 ${red.found.length} redacted` : '') });
   if (usePlatform()) return sendViaPlatform(content, pageSent);
 
   const out = addAssistant(); let acc = '', raf = 0;
@@ -765,6 +887,7 @@ async function send() {
       }
     }
     cancelAnimationFrame(raf); renderInto(out, acc || '_(empty response)_', false);
+    if (acc) remember({ role: 'assistant', text: acc });
     addTools(out, acc, false);
   } catch (e) {
     cancelAnimationFrame(raf);
