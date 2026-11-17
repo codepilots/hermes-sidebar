@@ -73,38 +73,43 @@ pt.onchange = async () => {
 $('reveal').onclick = () => { k.type = k.type === 'password' ? 'text' : 'password'; };
 
 /* ---------- test connection ---------- */
-// A client token (otr_…) only opens the outrigger WebSocket: test that instead of /v1/models.
-function testToken(base, token) {
+// Everything the sidebar needs goes over the outrigger WebSocket, so test that: it works
+// for the API key and paired tokens alike, and through a tunnel that exposes only
+// /v1/outrigger/ws (docs/remote-access.md in hermes-outrigger).
+function testWS(base, key) {
   return new Promise(resolve => {
     let ws;
-    try { ws = new WebSocket(base.replace(/^http/, 'ws') + '/v1/outrigger/ws', ['hermes-outrigger.v1', 'bearer.' + token]); }
-    catch { return resolve("Can't reach gateway"); }
-    const t = setTimeout(() => { ws.close(); resolve('No answer from the gateway'); }, 5000);
+    try { ws = new WebSocket(base.replace(/^http/, 'ws') + '/v1/outrigger/ws', ['hermes-outrigger.v1', 'bearer.' + key]); }
+    catch { return resolve({ ok: false, msg: "That address doesn't look right" }); }
+    const t = setTimeout(() => { ws.close(); resolve({ ok: false, msg: 'No answer from the gateway' }); }, 6000);
     ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', protocol: 2, client: { name: 'hermes-sidebar-test' }, tools: [], capabilities: ['chat'] }));
     ws.onmessage = ev => {
       clearTimeout(t); ws.close();
       try { const m = JSON.parse(ev.data);
-        resolve(m.type === 'welcome' ? (m.platform?.available ? 'ok' : 'Token accepted, but the Outrigger platform is off') : (m.message || 'Refused'));
-      } catch { resolve('Unexpected reply'); }
+        if (m.type !== 'welcome') return resolve({ ok: false, msg: m.message || 'Refused' });
+        resolve({ ok: true, platform: !!m.platform?.available });
+      } catch { resolve({ ok: false, msg: 'Unexpected reply' }); }
     };
-    ws.onclose = ev => { clearTimeout(t); resolve(ev.code === 1006 ? 'Token rejected or gateway unreachable' : 'Closed'); };
+    ws.onclose = ev => {
+      clearTimeout(t);
+      if (ev.code !== 1006) return resolve({ ok: false, msg: 'Closed by the gateway' });
+      // The browser hides the HTTP status of a refused WebSocket: say what it can be.
+      const remote = !/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(base);
+      resolve({ ok: false, msg: remote && !/^otr_/.test(key)
+        ? 'Refused or unreachable. Remotely, use a paired token (the API key only works on the Hermes machine).'
+        : 'Refused or unreachable: check the address, the key or token, and that the outrigger plugin is enabled.' });
+    };
   });
 }
 
 $('test').onclick = async () => {
   await save();
+  const base = e.value.trim().replace(/\/$/, ''), key = k.value.trim();
+  if (!key) return say('Add an API key or token first', 'bad');
   say('Testing…');
-  const base = e.value.trim().replace(/\/$/, '');
-  if (/^otr_/.test(k.value.trim())) {
-    const r = await testToken(base, k.value.trim());
-    return r === 'ok' ? say('Connected with token ✓', 'ok') : say(r, 'bad');
-  }
-  try {
-    const r = await fetch(base + '/v1/models', { headers: { Authorization: 'Bearer ' + k.value.trim() } });
-    if (r.ok) say('Connected ✓', 'ok');
-    else if (r.status === 401) say('Reached gateway, but key rejected (401)', 'bad');
-    else say(`Gateway replied ${r.status}`, 'bad');
-  } catch { say("Can't reach gateway", 'bad'); }
+  const r = await testWS(base, key);
+  if (!r.ok) return say(r.msg, 'bad');
+  say((/^otr_/.test(key) ? 'Connected with token ✓' : 'Connected ✓') + (r.platform ? '' : ' (Outrigger platform off: chat uses Chat Completions)'), 'ok');
 };
 
 /* ---------- about ---------- */
