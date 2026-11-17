@@ -364,7 +364,7 @@ on it.
   "Send as a message".
 - Phase 2: see the testing section of `hermes-outrigger/docs/platform.md`.
 
-## 14. Notebook mode: edit notes on the Hermes host, with `//` commands
+## 14. Notebook mode: edit notes on the Hermes host, with `//` commands — N1-N2 implemented
 
 Open a Markdown note that lives on the Hermes machine (for example the
 `~/vaults/notes` Obsidian vault) in a Note view, edit it with autosave back to

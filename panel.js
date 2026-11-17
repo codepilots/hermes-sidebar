@@ -55,7 +55,8 @@ const outrigger = new Outrigger({
   onCall: handleCall,
   onCancel: (id, reason) => pendingCards.get(id)?.cancel(reason),
   onChat: m => onChatFrame(m),
-  onWelcome: w => { if (w.platform?.available) { outrigger.chatAttach(chatId); outrigger.requestCommands(); } },
+  onDoc: m => NB.onFrame(m),
+  onWelcome: w => { if (w.platform?.available) { outrigger.chatAttach(chatId); outrigger.requestCommands(); } NB.reattach(); },
   onStatus: (state, detail) => {
     const [cls, text] = TOOL_LABEL[state] || TOOL_LABEL.off;
     const el = $('toolsState'); el.className = 'tools-state ' + cls; el.textContent = text;
@@ -491,6 +492,20 @@ $('clear').onclick = () => {
 };
 autosize();
 
+/* ---------- Chat / Note views ---------- */
+function showView(v) {
+  const note = v === 'note';
+  $('noteView').hidden = !note;
+  $('log').hidden = note; $('pageCard').hidden = note; form.hidden = note;
+  $('noteToggle').classList.toggle('active', note);
+  $('noteToggle').title = note ? 'Back to chat' : 'Notes on the Hermes host';
+  try { chrome.storage.session.set({ view: v }); } catch {}
+  if (note && !NB.active) NB.openPicker('');
+}
+$('noteToggle').onclick = () => showView($('noteView').hidden ? 'note' : 'chat');
+NB.init();
+chrome.storage.session.get('view').then(v => { if (v.view === 'note') showView('note'); }).catch(() => {});
+
 function setBusy(on) {
   document.body.classList.toggle('busy', on);
   sendBtn.title = on ? 'Stop (Esc)' : 'Send (Enter)';
@@ -544,7 +559,9 @@ function sendViaPlatform(content, pageSent) {
 const promptCards = new Map();  // prompt id -> { card, note, controls }
 
 // Where a prompt card goes: the reply bubble waiting for this turn, else a new one.
+let promptHostOverride = null;
 function promptHost() {
+  if (promptHostOverride) return promptHostOverride;
   let el = platformFill && platformFill.isConnected && !platformFill.dataset.filled ? platformFill : addAssistant();
   el.dataset.filled = '1';
   el.querySelector('.body').textContent = '';
@@ -558,7 +575,7 @@ function promptCard(m, title, subtitle) {
   card.append(head);
   if (subtitle) { const s = document.createElement('div'); s.className = 'confirm-where'; s.textContent = subtitle; card.append(s); }
   const note = document.createElement('span'); note.className = 'confirm-note';
-  const entry = { card, note, controls: [] };
+  const entry = { card, note, controls: [], chat: m.chat_id || chatId };
   promptCards.set(m.id, entry);
   return entry;
 }
@@ -567,8 +584,8 @@ function answerPrompt(m, kind, value, label) {
   const e = promptCards.get(m.id); if (!e) return;
   e.controls.forEach(c => c.disabled = true);
   e.card.classList.add('done'); e.note.textContent = label || 'Sent';
-  outrigger.chatAction(chatId, kind, m.id, value);
-  if (!platformBusy) setPlatformBusy(true);
+  outrigger.chatAction(e.chat, kind, m.id, value);
+  if (!platformBusy && e.chat === chatId) setPlatformBusy(true);
 }
 
 function promptResult(m) {
@@ -809,6 +826,13 @@ const isStatusText = t => typeof t === 'string' && t.length <= 120 && !t.include
   /^\p{Extended_Pictographic}/u.test(t.trim());
 
 function onChatFrame(m) {
+  // The open note's own chat (a // command's turn): prompts go to the Note view, the
+  // summary to its result bar.
+  if (m.chat_id && NB.isNoteChat(m.chat_id)) {
+    if (PROMPT_RENDERERS[m.type]) { promptHostOverride = $('notePrompts'); renderPrompt(m); promptHostOverride = null; return; }
+    if (m.type === 'chat.action_result') { promptResult(m); return; }
+    NB.onChat(m); return;
+  }
   if (m.type === 'error') {
     if (!platformBusy) return;
     const el = platformFill || addAssistant();
@@ -873,6 +897,9 @@ async function send() {
     q.value = text; autosize(); return;
   }
 
+  // /note [query]: open a note from the Hermes host (handled here, not by Hermes).
+  const noteCmd = text.match(/^\/note(?:\s+(.*))?$/);
+  if (noteCmd) { showView('note'); NB.openPicker(noteCmd[1] || ''); return; }
   // Decide platform vs Chat Completions only once the connection has had a moment.
   if (platformPref && outrigger.state === 'connecting') await outrigger.ready(2000);
   let content = text, tag = '', pageSent = null;

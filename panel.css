@@ -130,6 +130,42 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .cmd-hint{font-family:var(--mono);font-size:11px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cmd-desc{grid-column:1/-1;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .media-file{display:inline-block;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);text-decoration:none;color:var(--text)}
+/* Notebook mode */
+.page-card[hidden],#log[hidden],form.composer[hidden]{display:none}
+#noteToggle.active{color:var(--accent);background:var(--accent-soft)}
+.note-view{flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
+.note-view[hidden]{display:none}
+.note-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.note-open{border:1px solid var(--border);background:var(--bg);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12.5px}
+.note-path{flex:1;min-width:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note-status{font-size:11px;color:var(--faint);flex:none}
+.note-status.ok{color:var(--ok)}.note-status.warn{color:var(--warn)}.note-status.bad{color:var(--err-ink)}.note-status.busy{color:var(--accent)}
+.note-banner{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:7px 12px;font-size:12.5px;border-bottom:1px solid var(--border)}
+.note-banner[hidden]{display:none}
+.note-banner.busy{background:var(--accent-soft)}.note-banner.bad{background:var(--err-bg);color:var(--err-ink)}.note-banner.ok{background:var(--surface-2)}
+.note-banner button{margin-left:auto;border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:3px 10px;cursor:pointer;font-size:12px}
+.note-banner button + button{margin-left:0}
+#noteResultText{flex:1;min-width:0}
+.note-prompts:empty{display:none}
+.note-prompts{padding:8px 12px 0}
+.note-editor{flex:1;min-height:0;overflow:auto}
+.note-editor .cm-editor{height:100%;font-size:13.5px;background:var(--bg);color:var(--text)}
+.note-editor .cm-editor.cm-focused{outline:none}
+.note-editor .cm-scroller{font-family:var(--mono);line-height:1.55;padding:6px 0}
+.note-editor .cm-content{caret-color:var(--accent);padding:0 12px}
+.note-editor .cm-activeLine{background:color-mix(in srgb,var(--surface-2) 60%,transparent)}
+.note-editor .cm-selectionBackground,.note-editor .cm-focused .cm-selectionBackground{background:var(--accent-soft)!important}
+.cm-hermes-cmd{color:var(--accent);font-weight:600;background:var(--accent-soft)}
+.cm-hermes-cmd::after{content:"  ↵ send to Hermes";color:var(--faint);font-weight:400;font-size:11px}
+.cm-hermes-changed{background:color-mix(in srgb,var(--ok) 16%,transparent)}
+.note-picker{position:absolute;inset:44px 10px auto 10px;max-height:70%;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);z-index:6}
+.note-picker[hidden]{display:none}
+.note-picker input{border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);font:inherit;padding:10px 12px;outline:none}
+.note-picker ul{list-style:none;margin:0;padding:4px;overflow:auto}
+.note-picker li{padding:6px 8px;border-radius:8px;cursor:pointer}
+.note-picker li:hover{background:var(--accent-soft)}
+.pick-title{font-size:13px;font-weight:550}.pick-path{font-size:11px;color:var(--faint)}
+.empty-row{color:var(--faint);cursor:default!important}
 .status-line{font-size:11.5px;color:var(--muted);padding:1px 0}
 .call-via{flex:none;font-size:10.5px;color:var(--faint);border:1px solid var(--border);border-radius:999px;padding:0 6px;cursor:help}
 .confirm-row button{border-radius:8px;padding:5px 14px;cursor:pointer;font-weight:600;font-size:12.5px;border:1px solid var(--border);background:var(--surface)}

@@ -7,3 +7,7 @@ Fetched with npm pack (registry integrity checked) on 2026-11-16.
   tools/build-arcjet-redact.sh (esbuild 0.28.2) into arcjet-redact.js; Wasm inlined
   as data: URLs by the package, no network. Needs 'wasm-unsafe-eval' in the CSP.
 - compromise 14.19.0 (builds/compromise.js), MIT.
+- CodeMirror 6 (@codemirror/state 6.7.6, view 6.43.15, commands 6.11.1,
+  language 6.13.1, lang-markdown 6.5.2 (Markdown only), search 6.7.2; Lezer), MIT,
+  and diff-match-patch 1.0.5, Apache-2.0: bundled by tools/build-editor.sh
+  (esbuild 0.28.2, npm --before=2026-11-03) into editor.js, global HermesEditor.

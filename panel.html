@@ -16,6 +16,9 @@
     </div>
   </div>
   <div class="actions">
+    <button class="icon-btn" id="noteToggle" title="Notes on the Hermes host" aria-label="Notes">
+      <svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
+    </button>
     <button class="icon-btn" id="clear" title="New conversation" aria-label="New conversation">
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
     </button>
@@ -36,6 +39,26 @@
     <span class="track"><span class="thumb"></span></span>
     <span class="switch-label">Page</span>
   </label>
+</section>
+
+<section id="noteView" class="note-view" hidden>
+  <div class="note-bar">
+    <button class="note-open" id="noteOpen" title="Open a note">Open note…</button>
+    <span class="note-path" id="notePath">No note open</span>
+    <span class="note-status" id="noteStatus"></span>
+  </div>
+  <div class="note-banner busy" id="noteLock" hidden>Hermes is working on: <b id="noteLockText"></b>
+    <button id="noteStop">Stop</button></div>
+  <div class="note-banner bad" id="noteConflict" hidden>This note changed elsewhere and the edits overlap.
+    <button id="noteTheirs">Use theirs</button><button id="noteMine">Keep mine</button></div>
+  <div class="note-banner ok" id="noteResult" hidden><span id="noteResultText"></span>
+    <button id="noteUndo">Undo Hermes's change</button><button id="noteKeep">Keep</button></div>
+  <div id="notePrompts" class="note-prompts"></div>
+  <div id="noteEditor" class="note-editor"></div>
+  <div id="notePicker" class="note-picker" hidden>
+    <input id="notePickQuery" placeholder="Search notes…" spellcheck="false">
+    <ul id="notePickList"></ul>
+  </div>
 </section>
 
 <main id="log" aria-live="polite">
@@ -70,6 +93,8 @@
 <script src="vendor/arcjet-redact.js"></script>
 <script src="vendor/compromise.js"></script>
 <script src="redactor.js"></script>
+<script src="vendor/editor.js"></script>
+<script src="notebook.js"></script>
 <script src="outrigger.js"></script>
 <script src="browser-tools.js"></script>
 <script src="panel.js"></script>

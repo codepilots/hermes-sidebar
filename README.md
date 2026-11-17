@@ -61,6 +61,19 @@ attaches to its conversation's session and offers Hermes tools that run in this 
 | `dev_watch` | console messages, errors and failed requests for N seconds, optionally after a reload | yes |
 | `search_history` / `search_bookmarks` | search your history / bookmarks (optional permissions, enable in settings) | yes, always |
 
+### Notebook mode
+
+With `notebook_roots` set in the outrigger plugin, the note button in the header
+(or `/note <search>`) opens a Markdown note from the Hermes machine in an editor
+(CodeMirror). Edits autosave to the file; changes made elsewhere (Obsidian, sync)
+are merged in, with a conflict bar if the edits overlap. Type a line starting with
+`//` (`//correct my spelling`, `//flesh this out`, `//find some relevant links`)
+and press Enter at its end: Hermes removes the line, decides what it refers to,
+and edits the note while the editor is paused. You then see its summary, the
+changed lines highlighted, and **Undo Hermes's change**. Enter anywhere else in a
+`//` line is an ordinary newline. Prompts Hermes raises meanwhile (approvals,
+questions) appear in the Note view.
+
 Right-click a selection, link, image or page and choose "Ask Hermes about…" to open
 the panel with it filled in. A notification tells you when a reply that took over
 20 s finishes while you are elsewhere (settings).

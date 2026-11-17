@@ -15,8 +15,8 @@ class Outrigger {
    * @param {Function} o.onChat    (frame) => void for Outrigger-platform chat.* frames
    * @param {Function} o.onWelcome (welcome) => void, after every (re)attach
    */
-  constructor({ tools, onCall, onCancel, onStatus, onChat, onWelcome }) {
-    Object.assign(this, { tools, onCall, onCancel, onStatus, onChat, onWelcome });
+  constructor({ tools, onCall, onCancel, onStatus, onChat, onWelcome, onDoc }) {
+    Object.assign(this, { tools, onCall, onCancel, onStatus, onChat, onWelcome, onDoc });
     this.platformAvailable = false;
     this.ws = null; this.cfg = null; this.stopped = true;
     this.attached = false; this.retry = 0; this.timer = 0; this.summary = '';
@@ -74,7 +74,7 @@ class Outrigger {
     this.ws = ws;
     ws.onopen = () => this._send({
       // Protocol 2 adds the Outrigger platform: chat through Hermes's messaging pipeline.
-      type: 'hello', protocol: 2, capabilities: ['chat', 'edits', 'model_picker', 'choices', 'clarify', 'approvals', 'media'],
+      type: 'hello', protocol: 2, capabilities: ['chat', 'edits', 'model_picker', 'choices', 'clarify', 'approvals', 'media', 'notebook'],
       client: { name: 'hermes-sidebar', version: chrome.runtime.getManifest().version,
                 kind: 'chromium-extension', label: 'Chromium side panel', concurrency: 1 },
       session_id: this.cfg.sessionId, tools: this.tools,
@@ -140,6 +140,7 @@ class Outrigger {
         break;
       default:
         if (typeof m.type === 'string' && m.type.startsWith('chat.')) { try { this.onChat?.(m); } catch {} }
+        else if (typeof m.type === 'string' && m.type.startsWith('doc.')) { try { this.onDoc?.(m); } catch (e) { console.warn(e); } }
     }
   }
 
