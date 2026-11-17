@@ -45,6 +45,7 @@
   <div class="note-bar">
     <button class="note-open" id="noteOpen" title="Open a note">Open note…</button>
     <span class="note-path" id="notePath">No note open</span>
+    <span class="note-presence" id="notePresence"></span>
     <span class="note-status" id="noteStatus"></span>
   </div>
   <div class="note-tools">
@@ -57,7 +58,7 @@
     <input id="noteAskInput" placeholder="What should Hermes do with it?" spellcheck="true">
     <button id="noteAskSend">Send</button><button id="noteAskCancel">Cancel</button>
   </div>
-  <div class="note-banner busy" id="noteLock" hidden>Hermes is working on: <b id="noteLockText"></b>
+  <div class="note-banner busy" id="noteLock" hidden><span>Hermes is working on<span id="noteLockWho"></span> <b id="noteLockText"></b></span>
     <button id="noteStop">Stop</button></div>
   <div class="note-banner bad" id="noteConflict" hidden>This note changed elsewhere and the edits overlap.
     <button id="noteTheirs">Use theirs</button><button id="noteMine">Keep mine</button></div>

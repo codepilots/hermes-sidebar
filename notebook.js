@@ -104,6 +104,21 @@ const NB = (() => {
   }
   function setEditable(on) { st.view.dispatch({ effects: editable.reconfigure(E.EditorView.editable.of(on)) }); }
 
+  /* ---------- presence (N4) ---------- */
+  const mine = w => !!w && w.client_id === outrigger.clientId;
+  function renderPresence(viewers) {
+    const el = $('notePresence'); el.innerHTML = '';
+    const others = viewers.filter(v => !mine(v));
+    for (const v of others.slice(0, 5)) {
+      const b = document.createElement('span'); b.className = 'presence-dot';
+      b.textContent = (v.name || v.user || '?').trim().slice(0, 1).toUpperCase();
+      b.title = `${v.name || v.user} — ${v.label}`;
+      el.append(b);
+    }
+    if (others.length > 5) { const more = document.createElement('span'); more.className = 'presence-more'; more.textContent = '+' + (others.length - 5); el.append(more); }
+    el.title = others.length ? `Also open: ${others.map(v => `${v.name || v.user} (${v.label})`).join(', ')}` : '';
+  }
+
   /* ---------- status ---------- */
   function status(s, cls = '') { const el = $('noteStatus'); el.textContent = s; el.className = 'note-status ' + cls; }
   const dirty = () => st.doc && text() !== st.base;
@@ -180,6 +195,9 @@ const NB = (() => {
     $('notePrompts').innerHTML = '';  // cards from an earlier command
     $('noteResult').hidden = true;
     $('noteLockText').textContent = lock.instruction || '';
+    const others = lock.who && !mine(lock.who);
+    $('noteLockWho').textContent = others ? ` ${lock.who.name}'s request:` : ':';
+    $('noteStop').hidden = !!others;  // only the person who asked can stop their command
     $('noteLock').hidden = false;
     status('Hermes is working…', 'busy');
     if (lock.chat_id) st.noteChat = lock.chat_id;
@@ -259,6 +277,10 @@ const NB = (() => {
         break;
       case 'doc.changed':
         takeRemote(m.text, m.version);
+        if (m.who && !mine(m.who)) status(`${m.who.name} edited`, 'ok');
+        break;
+      case 'doc.presence':
+        renderPresence(m.viewers || []);
         break;
       case 'doc.lock':
         if (m.locked) showLock(m); else endLock(m);

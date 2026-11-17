@@ -80,6 +80,11 @@ the note rendered, and **Open in tab** opens the same editor full width
 (`notebook.html`). The tab and the panel stay in sync, and each shows Hermes's
 prompts for the commands it started.
 
+When others have the same note open (another of your windows, or a paired user
+the outrigger plugin allows into that folder), their initials show in the note
+bar. Their edits appear live ("Ann edited"), and a command they start shows as
+"Hermes is working on Ann's request". Only they can stop it.
+
 Right-click a selection, link, image or page and choose "Ask Hermes about…" to open
 the panel with it filled in. A notification tells you when a reply that took over
 20 s finishes while you are elsewhere (settings).
