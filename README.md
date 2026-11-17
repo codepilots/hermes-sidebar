@@ -19,7 +19,12 @@ A Chromium side panel for asking Hermes (Sorrel) about the page you're reading.
 - With the outrigger plugin's **Outrigger platform** (default), chat goes over the
   outrigger connection through Hermes's messaging pipeline, so Hermes slash
   commands work (`/model`, `/new`, `/help`, `/stop`…) and are sent as typed, without
-  the page. Hermes's own progress messages show as muted status lines. Settings:
+  the page. Hermes's own progress messages show as muted status lines.
+  Hermes's interactive prompts appear as cards: `/model` opens a model picker
+  (provider, filter, model), `/reasoning` and similar show choice buttons, the
+  `clarify` tool's questions get answer buttons (or checkboxes, plus "Other…"),
+  and dangerous-command approvals show the full command with Hermes's own
+  approve/deny options. Settings:
   "Chat through the Outrigger platform"; without it (or without the platform) the
   sidebar uses Chat Completions.
 - Each conversation has its own Hermes session (`X-Hermes-Session-Id`); Hermes keeps the history, and "New conversation" starts a new session.
