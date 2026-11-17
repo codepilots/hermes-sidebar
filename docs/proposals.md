@@ -6,7 +6,7 @@ hermes-outrigger plugin (tools: `get_page`, `get_selection`, `list_tabs`,
 reviewer). Ranked by how much they address problems seen in real use.
 
 Status: 1-14 implemented (2026-11-17). 13 phase 2 became the Outrigger platform
-(hermes-outrigger docs/platform.md, P1-P4); phase 1's header picker is covered by /model. 15 (scheduled browser scripts) and 16 (the agent's name) are proposed.
+(hermes-outrigger docs/platform.md, P1-P4); phase 1's header picker is covered by /model. 15 (scheduled browser scripts) and 16 (the agent's name) are proposed; round 3 (17-26) at the end.
 
 ---
 
@@ -717,3 +717,309 @@ referred to, and pronoun-free text works for any name.
 - **Extension:** with `agent_name: Sorrel`, the placeholder, menus, the
   action title, cards, the lock bar and notifications all say Sorrel. After
   a reload while offline, the cached name is still used.
+
+---
+
+# Round 3 (2026-11-17)
+
+Proposals 17-24 are next up; 25-26 are low priority. All are proposed, none
+built. Each builds on something that already exists (the notebook, the
+right-click menu, the `run_js` runner, the screenshot file path, tab groups,
+notifications).
+
+## 17. Clip to notes
+
+Save the current page, the selection, a link or an image into a vault note
+from the right-click menu. Today, getting something from the browser into
+your notes means copying by hand or asking Hermes in chat.
+
+**Right-click menu.** A "Save to notes" submenu:
+
+- **Append to today's note**, using the daily-note template (below).
+- **Append to the open note** (Notebook mode's current note), when one is
+  open.
+- **New note…**, which asks for a title in a small panel prompt.
+- **Summarise and file…**, which sends a `//`-style instruction to the agent
+  with the clipped content, e.g. "summarise this into my reading list".
+
+**What's saved** (Markdown):
+```markdown
+## <page title>
+<selection as a quote, or a page excerpt, or the link/image>
+— [source](<url>) · 2026-11-17 14:02
+```
+Selections keep their structure: links, lists and code become Markdown, and
+nothing is sent to the model. "Whole page" uses the same readable-text
+extraction as `get_page`.
+
+**Settings:**
+- the default action;
+- the daily-note path template (`Daily/{yyyy}-{mm}-{dd}.md`);
+- the clip template;
+- which notebook root to use.
+
+**Plugin side (Notebook).**
+- **New messages:**
+  - `doc.append {root, path, text}`: an atomic append that creates the file
+    if needed, without a full-text round trip;
+  - `doc.create {root, path, text}`: refuses to overwrite.
+- **Checks:** the same path rules, `notebook_max_bytes` and per-user roots.
+- **Live:** an open copy of the note updates through `doc.changed`.
+
+**Safety.** Clipping is local text into your own vault: no model call and no
+approval card. Redaction doesn't apply, because the text doesn't go to the
+model. "Summarise and file" goes through the normal turn, with redaction.
+
+**Phases:** C1 the menu, append, today's note and new note. C2 "summarise and
+file", templates, and image clips (saved next to the note as files).
+
+## 18. Rewrite in place (any text field)
+
+Right-click in a text box, or press a shortcut, then choose **"Rewrite with
+\<agent>"**: fix, shorten, make it friendlier or more formal, or a custom
+instruction. The suggestion appears as an inline diff next to the field.
+**Accept** writes it back; **Discard** leaves the field untouched. Most
+writing in the browser (email, comments, PRs, tickets) happens in other
+sites' fields.
+
+**How it works:**
+- **Reading the field.** A content script reads the focused `textarea`,
+  `input` or `contenteditable` element: its text, the selection if any, and
+  enough surrounding context (e.g. the email being replied to, capped).
+- **The request.** It goes to the agent on its own chat, `rw:<id>`. Results
+  stream into the popover, which lives in a shadow DOM so the page's styles
+  can't break it.
+- **Writing back.** Accept uses `execCommand('insertText')` or the field's
+  native setter plus `input` events. That keeps the field's undo history,
+  and frameworks such as React and the editors in Gmail and GitHub see the
+  change. Ctrl+Z still works.
+
+**Safety:**
+- **Narrowed toolsets.** The surrounding context may be someone else's text,
+  like the email you're replying to. So `rw:` chats get no tools through the
+  plugin's `toolsets_for_source()`: setting `rewrite_toolsets`, default
+  `[no_mcp]`. It's plain text in, plain text out.
+- **Redaction.** It applies to the text sent, and placeholders are restored
+  in the suggestion before it's shown, so names and emails come back as they
+  were.
+- **No silent changes.** Nothing is written without Accept, and password
+  fields are never read.
+
+**Phases:** R1 `textarea` and `input`, with fixed actions plus a custom
+instruction. R2 `contenteditable` (Gmail, GitHub, Notion), the keyboard
+shortcut and the surrounding context.
+
+## 19. PDFs and documents
+
+Chrome's PDF viewer is closed to extensions, so `get_page` fails on PDFs, one
+of the most common things to ask about. A new tool, **`get_document {tab?,
+pages?}`**:
+
+1. **Fetch.** It fetches the current tab's PDF with your session: from the
+   extension, using host permissions, or failing that from the page context,
+   for files behind cookies only the page sends. It also handles `file://`
+   PDFs when "Allow access to file URLs" is on.
+2. **Extract.** It extracts text in the browser with **pdf.js** (Apache-2.0,
+   vendored and credited in About), page by page, with `pages` ranges and the
+   usual result cap. Extracting in the browser means redaction works on PDFs
+   too.
+3. **Optionally keep the file.** With `keep_file: true`, it sends the
+   original to the plugin, which saves it like screenshots
+   (`plugin-data/outrigger/documents/`, size-capped, newest N) and returns
+   `file_path` for Hermes's own tools. Tables and figures survive better
+   that way.
+
+**Also covered:** Google Docs, Sheets and Slides through their export URLs
+(`/export?format=txt|csv|pdf`), fetched with your session.
+
+**Policy.** Reading the current tab's document is like `get_page`, so it's
+auto-approved. `keep_file` uploads a file to the host, so it uses the
+"screenshots" confirm class.
+
+**Phases:** D1 PDFs (text and pages). D2 `keep_file` and Google exports.
+
+## 20. Fetch as me
+
+**`fetch_url {url, as?: "text" | "json" | "html", max_chars?}`** fetches a URL
+through your logged-in browser without opening a tab. Uses:
+- an intranet page;
+- a JSON API behind login;
+- "the CSV linked on this page";
+- a status endpoint for a scheduled script.
+
+**How it works:**
+- **Same-origin requests** run in the page context (via the debugger, like
+  `run_js`), so cookies and CSRF behave as the site expects.
+- **Other origins** run from the extension, using host permissions.
+- **Requests:** `GET` only (`HEAD` later), a 15 s timeout, a 2 MB download
+  cap, and HTML turned into readable text.
+- **Results** are redacted and capped like any tool result.
+
+**Policy:**
+- **New confirm class, "fetch".** Each site is granted per conversation, as
+  for actions. The reviewer may auto-approve `GET`s to sites already granted
+  in the conversation.
+- **Redirects.** A redirect to another origin is reported, not followed.
+- **No local network.** `localhost` and private ranges are blocked unless you
+  allow them in settings, so a page can't use Hermes to probe your network.
+
+**Phases:** F1 `GET` with text, JSON and HTML. F2 `HEAD`, and usable from
+scheduled scripts (15).
+
+## 21. Files in and out
+
+**`download {name, content | path, mime?}`** puts something the agent produced
+(CSV, Markdown, a generated image) into your Downloads folder.
+- **Content:** inline content up to 1 MB. Larger files come from a `path` on
+  the host, which the plugin reads only if Hermes's own media path checks
+  allow it (`validate_media_delivery_path`, as for `send_document`).
+- **Permission:** `chrome.downloads`, an optional permission requested when
+  you turn the feature on.
+- **Policy:** confirm class "files". The card shows the name, size and type.
+
+**`upload_file {selector | ref, path}`** attaches a host file to a form's file
+input.
+- **How:** the plugin reads the file (same path checks), the sidebar builds a
+  `File`, assigns it through `DataTransfer` and fires `change`. This works on
+  most sites without the debugger. `DOM.setFileInputFiles` isn't usable
+  here, because it needs a path on the browser's machine.
+- **Policy:** always a card showing the file name, size and target site.
+  Uploading is never auto-approved.
+
+**Phases:** U1 `download`. U2 `upload_file`.
+
+## 22. Read many tabs at once
+
+**`read_tabs {tabs?: [ids] | group?: name | window?: "current", mode?: "text" |
+"snapshot", max_chars_per_tab?}`** reads several tabs in one call, in
+parallel, with a shared size budget split across tabs. It's for "compare
+these five products" or "summarise everything I opened about X" without
+eight round trips and a full context.
+
+- **Skipped:** Chrome pages and other unreadable tabs, listed with a reason.
+- **Discarded tabs:** they aren't woken, unless `wake: true`.
+- **Redaction** applies per tab, with each tab's own site setting.
+- **Policy:** like `get_page` (auto). Reading tabs in other windows (`window:
+  "all"`) needs a card once per conversation.
+
+## 23. Address-bar shortcut
+
+Type **`h` then Space** in Chrome's address bar, then a question, to ask the
+agent straight away.
+- **Suggestions:** "Ask Sorrel: \<text>". Typing `h /` lists slash commands
+  from the command catalog.
+- **Enter** opens the side panel and sends the question with the current
+  tab as context. "Ask in a new conversation" is the second suggestion.
+
+**Notes:**
+- **The keyword is fixed.** It's set in the manifest (`omnibox.keyword`),
+  can't change at runtime and so can't be the agent's name. `h` is short;
+  proposal 16's name appears in the suggestion text instead.
+- **Opening the panel.** `chrome.sidePanel.open` needs a user gesture.
+  Whether pressing Enter in the address bar counts needs testing. If it
+  doesn't, a notification is shown instead ("Sorrel is answering, click to
+  open"), using 24.
+
+## 24. System notifications: approvals, prompts and replies
+
+**Today:** a notification appears only when a long reply finishes while the
+panel is hidden (proposal 8). That leaves gaps:
+- **Approvals.** A card that needs you (an approval, `reveal`, clarify, a
+  choice) waits silently if you're in another window. Calls time out (60 s
+  by default), and Hermes gives up.
+- **Panel closed.** Anything Hermes sends while the panel is closed, such as
+  results from its own cron jobs or replies to scheduled wakes (15), is only
+  seen when you next open the panel.
+
+**A. Cards that need you.** When a card appears and the panel isn't the
+focused, visible window:
+- **Approval:** "Sorrel wants to click 'Submit' on example.com". The
+  buttons are **Open** and **Deny**. **Approve isn't offered in the
+  notification:** you should see the details on the card first. The
+  exception is classes the reviewer already approved, a setting that's off
+  by default.
+- **Reveal, clarify and choice:** "Sorrel needs your answer", with **Open**.
+- **`//` note commands** waiting on a prompt: "Sorrel needs you in
+  \<note>".
+- **Persistence.** Notifications stay until acted on
+  (`requireInteraction`), and are cleared or updated when the card is
+  answered in the panel, cancelled or times out ("Timed out: Sorrel
+  continued without it").
+- **Open.** It focuses the window and opens the side panel on the card
+  (`sidePanel.open` from the notification click; needs testing as a user
+  gesture).
+- **Combined.** Several pending cards become one notification: "3 things
+  need you".
+
+**B. Messages while the panel is closed** (with "connect on wake", no
+standing connection):
+- **Checking in.** A `chrome.alarms` check every N minutes (default 5, or
+  off). It connects, flushes the outbox for your home chat and any chat with
+  queued replies, shows them as notifications ("Sorrel: Your 9:00 report is
+  ready") and disconnects. The plugin already queues replies per chat
+  (`OUTBOX`, 50 per chat); a `chat.peek` message, which lists chats with
+  queued replies, lets the check avoid attaching to everything.
+- **Clicking** opens the panel on that conversation.
+- **Scheduled wakes (15)** use the same path for their replies.
+
+**Settings** (Chat → Notifications):
+- separate switches for long replies (existing), cards that need you, and
+  messages while the panel is closed (with the check interval);
+- "Show message text in notifications": on by default; turn it off for
+  privacy on shared screens.
+
+**Platform notes:**
+- **Linux:** Chrome uses the desktop's native notifications. Buttons depend
+  on the notification daemon (mako supports actions through `makoctl`). If
+  they don't show, clicking still opens the panel.
+- **Do-not-disturb:** respected by the OS.
+
+**Phases:** N1 cards that need you (A). N2 messages while closed (B),
+`chat.peek` in the plugin, and scheduled-wake replies.
+
+## 25. "Watch me do it" — low priority
+
+Record your clicks, typing and navigation on a site as a named workflow
+("submit my timesheet"). Hermes can then replay it (each step with the usual
+cards, or a single card for the whole workflow), adapt it ("do it for last
+week"), or turn it into a scheduled script (15).
+
+**Hard parts:**
+- **Recordings capture sensitive input.** Typed values are stored as
+  placeholders with redaction categories, and password fields are never
+  recorded.
+- **Selectors break when sites change.** Recordings store snapshot refs and
+  text labels, not CSS paths, and replay re-resolves them each time.
+- **Replay must stop on surprises:** an unexpected page or a missing
+  element.
+
+Worth doing after 15 and 20, which provide most of the plumbing.
+
+## 26. Page annotations — low priority
+
+The agent leaves comments on a page: "this clause conflicts with §4", "this
+price is higher than last week". They show as margin notes anchored to the
+text, kept per URL in local storage, and reappear when you return.
+
+- **Builds on `highlight`.** Text-quote anchors, the same approach as the
+  W3C Web Annotation model, re-find the passage after small page changes.
+- **Controls:** a panel list "Notes on this page" and a toggle to hide them.
+- **Sync:** an optional copy into the vault via 17, as a note per site.
+
+## Considered: site-specific readers (YouTube, GitHub, long threads)
+
+Mostly covered by Hermes skills already:
+- **`youtube-content`** fetches transcripts on the host.
+- **`github`** uses `gh` for PRs, issues and diffs.
+- **`attached-browser-research`** covers reading the attached browser.
+
+The gaps are small:
+- **Private content.** The skills run on the host, so they can't see what
+  only your browser's logins can.
+- **Paired users.** The skills use `terminal`, which paired users don't
+  have.
+
+Better than new tools: add site recipes to `attached-browser-research`, for
+example how to read a long Slack or Discord thread or an infinite-scroll
+feed with `snapshot` and `scroll`, or a private repo's PR diff from the page.
+Build a dedicated extractor only if a recipe proves too slow or unreliable.
