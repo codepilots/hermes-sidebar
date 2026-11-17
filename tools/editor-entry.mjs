@@ -1,0 +1,11 @@
+export { EditorState, Compartment, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+export { EditorView, keymap, Decoration, ViewPlugin, placeholder, drawSelection, highlightActiveLine } from "@codemirror/view";
+export { history, historyKeymap, defaultKeymap, indentWithTab } from "@codemirror/commands";
+export { syntaxHighlighting, HighlightStyle, defaultHighlightStyle, syntaxTree } from "@codemirror/language";
+import { markdownLanguage } from "@codemirror/lang-markdown";
+import { LanguageSupport } from "@codemirror/language";
+export const markdown = () => new LanguageSupport(markdownLanguage);
+export { search, searchKeymap } from "@codemirror/search";
+export { tags } from "@lezer/highlight";
+import DMP from "diff-match-patch";
+export const diff_match_patch = DMP;

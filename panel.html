@@ -7,14 +7,21 @@
 </head>
 <body>
 <header class="bar">
-  <div class="brand">
-    <img src="icons/icon-32.png" alt="" class="logo">
-    <div class="brand-text">
-      <span class="name">Hermes</span>
-      <span class="status" id="status"><i class="dot"></i><span id="statusText">Ready</span></span>
+  <div class="ctx">
+    <img id="favicon" class="favicon" alt="">
+    <div class="ctx-text">
+      <div class="page-title" id="pageTitle">—</div>
+      <div class="ctx-sub">
+        <span class="page-host" id="pageHost"></span>
+        <span class="status" id="status" role="status"><i class="dot"></i><span id="statusText"></span></span>
+        <span class="tools-state off" id="toolsState"></span>
+      </div>
     </div>
   </div>
   <div class="actions">
+    <button class="icon-btn" id="noteToggle" title="Notes on the Hermes host" aria-label="Notes">
+      <svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
+    </button>
     <button class="icon-btn" id="clear" title="New conversation" aria-label="New conversation">
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
     </button>
@@ -24,24 +31,43 @@
   </div>
 </header>
 
-<section class="page-card" id="pageCard">
-  <img id="favicon" class="favicon" alt="">
-  <div class="page-meta">
-    <div class="page-title" id="pageTitle">—</div>
-    <div class="page-host" id="pageHost"></div>
+<section id="noteView" class="note-view" hidden>
+  <div class="note-bar">
+    <button class="note-open" id="noteOpen" title="Open a note">Open note…</button>
+    <span class="note-path" id="notePath">No note open</span>
+    <span class="note-presence" id="notePresence"></span>
+    <span class="note-status" id="noteStatus"></span>
   </div>
-  <label class="switch" title="Attach this page's text (and any selection) to your question">
-    <input type="checkbox" id="inc" checked>
-    <span class="track"><span class="thumb"></span></span>
-    <span class="switch-label">Page</span>
-  </label>
+  <div class="note-tools">
+    <button id="noteAsk" disabled title="Ask Hermes about the selected text (Ctrl+/)">Ask about selection</button>
+    <button id="notePreviewBtn" title="Show the note rendered">Preview</button>
+    <button id="noteTab" title="Open this note in a full tab">Open in tab ↗</button>
+  </div>
+  <div class="note-ask" id="noteAskBox" hidden>
+    <span id="noteAskWhat"></span>
+    <input id="noteAskInput" placeholder="What should Hermes do with it?" spellcheck="true">
+    <button id="noteAskSend">Send</button><button id="noteAskCancel">Cancel</button>
+  </div>
+  <div class="note-banner busy" id="noteLock" hidden><span>Hermes is working on<span id="noteLockWho"></span> <b id="noteLockText"></b></span>
+    <button id="noteStop">Stop</button></div>
+  <div class="note-banner bad" id="noteConflict" hidden>This note changed elsewhere and the edits overlap.
+    <button id="noteTheirs">Use theirs</button><button id="noteMine">Keep mine</button></div>
+  <div class="note-banner ok" id="noteResult" hidden><span id="noteResultText"></span>
+    <button id="noteUndo">Undo Hermes's change</button><button id="noteKeep">Keep</button></div>
+  <div id="notePrompts" class="note-prompts"></div>
+  <div id="noteEditor" class="note-editor"></div>
+  <div id="notePreview" class="note-preview body" hidden></div>
+  <div id="notePicker" class="note-picker" hidden>
+    <input id="notePickQuery" placeholder="Search notes…" spellcheck="false">
+    <ul id="notePickList"></ul>
+  </div>
 </section>
 
 <main id="log" aria-live="polite">
   <div class="empty" id="empty">
     <img src="icons/icon-128.png" alt="" class="empty-logo">
     <h2>Ask about this page</h2>
-    <p>Sorrel reads the page you're on (and anything you've selected) when <b>Page</b> is on.</p>
+    <p>Hermes can see which tab you're on and reads it when it needs to. Anything you've selected is sent with your question.</p>
     <div class="chips">
       <button class="chip" data-q="Summarise this page in a few bullet points.">Summarise</button>
       <button class="chip" data-q="What are the key takeaways here?">Key takeaways</button>
@@ -62,7 +88,18 @@
   <div class="hint"><kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> newline · <kbd>Esc</kbd> stop</div>
 </form>
 
+<script src="vendor/marked.umd.js"></script>
+<script src="vendor/purify.min.js"></script>
+<script src="vendor/highlight.min.js"></script>
 <script src="markdown.js"></script>
+<script src="vendor/arcjet-redact.js"></script>
+<script src="vendor/compromise.js"></script>
+<script src="redactor.js"></script>
+<script src="vendor/editor.js"></script>
+<script src="notebook.js"></script>
+<script src="outrigger.js"></script>
+<script src="prompts.js"></script>
+<script src="browser-tools.js"></script>
 <script src="panel.js"></script>
 </body>
 </html>
