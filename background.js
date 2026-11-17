@@ -19,3 +19,25 @@ async function syncOriginRule() {
 }
 syncOriginRule();
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.endpoint) syncOriginRule(); });
+
+// Right-click "Ask Hermes…" (proposal 4): open the panel and hand it the item.
+const MENUS = [
+  ['ask-selection', 'Ask Hermes about the selection', ['selection']],
+  ['ask-link', 'Ask Hermes about this link', ['link']],
+  ['ask-image', 'Ask Hermes about this image', ['image']],
+  ['ask-page', 'Ask Hermes about this page', ['page']],
+];
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.removeAll(() => MENUS.forEach(([id, title, contexts]) => chrome.contextMenus.create({ id, title, contexts })));
+});
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (!tab) return;
+  // sidePanel.open must run inside the click's user gesture: call it first.
+  chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {});
+  const kind = info.menuItemId.replace('ask-', '');
+  chrome.storage.session.set({ pendingAsk: {
+    kind, windowId: tab.windowId, ts: Date.now(), pageUrl: info.pageUrl, title: tab.title,
+    text: kind === 'selection' ? info.selectionText : undefined,
+    url: kind === 'link' ? info.linkUrl : kind === 'image' ? info.srcUrl : undefined,
+  } });
+});

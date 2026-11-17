@@ -70,7 +70,12 @@ const outrigger = new Outrigger({
 async function loadRedaction() {
   const { redact = true, redactCats = {}, redactSkip = [] } = await chrome.storage.local.get(['redact', 'redactCats', 'redactSkip']);
   redactor.configure({ enabled: redact, cats: redactCats, skip: redactSkip });
-  outrigger.tools = BROWSER_TOOLS.filter(t => t.name !== 'reveal' || redact);
+  const granted = {};
+  for (const perm of new Set(Object.values(OPTIONAL_TOOL_PERMISSION))) {
+    try { granted[perm] = await chrome.permissions.contains({ permissions: [perm] }); } catch { granted[perm] = false; }
+  }
+  outrigger.tools = BROWSER_TOOLS.filter(t => (t.name !== 'reveal' || redact) &&
+    (!OPTIONAL_TOOL_PERMISSION[t.name] || granted[OPTIONAL_TOOL_PERMISSION[t.name]]));
   outrigger.redaction = { enabled: redact, categories: redact ? redactor.categories() : [] };
 }
 
@@ -87,7 +92,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   checkKey();
   if (changes.reviewerAuto) reviewerAuto = changes.reviewerAuto.newValue !== false;
-  if (changes.endpoint || changes.key || changes.browserTools || changes.redact || changes.redactCats || changes.redactSkip) syncOutrigger();
+  if (changes.endpoint || changes.key || changes.browserTools || changes.redact || changes.redactCats || changes.redactSkip || changes.personalToolsChanged) syncOutrigger();
   if (changes.platformChat) platformPref = changes.platformChat.newValue !== false;
 });
 syncOutrigger();
@@ -250,8 +255,9 @@ function confirmCard(m, targetText, origin) {
     const buttons = [allow];
     let grant = null;
     const cls = TOOL_CLASS[m.tool];
-    // No site-wide grant from a flagged card: it covers this one call only.
-    if (cls && origin && !flagged) {
+    // No site-wide grant from a flagged card (this one call only), nor for classes that
+    // reach beyond one site (history and bookmarks).
+    if (cls && origin && !flagged && !NO_GRANT_CLASSES.has(cls)) {
       grant = document.createElement('button'); grant.className = 'btn-grant';
       grant.textContent = `Allow ${CLASS_LABEL[cls]} on ${hostOf(origin)}`;
       grant.title = 'For the rest of this conversation. Starting a new conversation clears it.';
@@ -367,7 +373,11 @@ async function handleCall(m) {
   try { url = m.tool === 'open_url' ? m.args.url : (await targetTab(m.args.tab)).url; } catch {}
   try {
     const raw = await handler(m.args, { signal: m.signal });
+    // Binary payloads (screenshots) are not text: keep them out of the text redactor.
+    const image = raw && typeof raw === 'object' ? raw.image : null;
+    if (image) delete raw.image;
     const { value: content, found } = await redactor.redactDeep(raw, { url });
+    if (image) content.image = image;
     if (found.length) line.via(`🛡 ${found.length}`, 'Hidden from Hermes:\n' + redactedNote(found));
     line.done(true);
     return { ok: true, content };
@@ -490,10 +500,27 @@ function setBusy(on) {
 }
 
 /* ---------- Outrigger platform chat ---------- */
+/* ---------- finish notification (proposal 8) ---------- */
+let turnStarted = 0, notifyDone = true;
+chrome.storage.local.get('notifyDone').then(v => { notifyDone = v.notifyDone !== false; });
+chrome.storage.onChanged.addListener((c, area) => { if (area === 'local' && c.notifyDone) notifyDone = c.notifyDone.newValue !== false; });
+function turnFinished(replyText) {
+  const took = Date.now() - turnStarted; turnStarted = 0;
+  if (!notifyDone || took < 20000 || (!document.hidden && document.hasFocus())) return;
+  // Put real values back first: stripping Markdown would break ⟦TYPE_n⟧ placeholders.
+  const text = redactor.unredact(String(replyText || 'Reply ready')).replace(/[#*`>]|\b_|_\b/g, '').replace(/\s+/g, ' ').trim();
+  try {
+    chrome.notifications.create('hermes-' + Date.now(), { type: 'basic', iconUrl: 'icons/icon-128.png',
+      title: 'Hermes replied', message: text.slice(0, 180) || 'Reply ready', priority: 0 });
+  } catch {}
+}
+const lastReplyText = () => { const b = [...log.querySelectorAll('.msg.assistant .body')].pop(); return b ? b.textContent : ''; };
+
 function setPlatformBusy(on) {
   clearTimeout(platformIdle);
   if (platformBusy === on) { if (on) armIdle(); return; }
   platformBusy = on;
+  if (on) turnStarted = Date.now(); else if (turnStarted) turnFinished(lastReplyText());
   document.body.classList.toggle('busy', on || !!controller);
   sendBtn.title = on ? 'Stop (Esc)' : 'Send (Enter)';
   if (on) { setStatus('busy', 'Working…'); armIdle(); } else { checkKey(); platformFill = null; }
@@ -758,7 +785,25 @@ async function restore() {
   if (!usingToken) outrigger.bind(sessionId);
   if (outrigger.attached && outrigger.platformAvailable) outrigger.chatAttach(chatId);
 }
-chrome.windows.getCurrent().then(w => { storeKey = 'conv-' + w.id; restore(); }).catch(() => {});
+chrome.windows.getCurrent().then(w => { storeKey = 'conv-' + w.id; restore().then(takePendingAsk); }).catch(() => {});
+
+/* ---------- right-click "Ask Hermes" (proposal 4; background.js stores the item) ---------- */
+async function takePendingAsk() {
+  let a = null;
+  try { a = (await chrome.storage.session.get('pendingAsk')).pendingAsk; } catch {}
+  if (!a || Date.now() - a.ts > 60000) return;
+  const w = await chrome.windows.getCurrent().catch(() => null);
+  if (w && a.windowId !== w.id) return;
+  await chrome.storage.session.remove('pendingAsk').catch(() => {});
+  const quote = s => String(s).trim().split('\n').map(l => '> ' + l).join('\n');
+  q.value = a.kind === 'selection' ? `About this selection:\n${quote(a.text).slice(0, 4000)}\n\n`
+    : a.kind === 'link' ? `About this link: ${a.url}\n`
+    : a.kind === 'image' ? `About this image: ${a.url}\n`
+    : 'About this page: ';
+  if (a.kind === 'page' && !inc.checked) { inc.checked = true; syncInc(); }
+  autosize(); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+}
+chrome.storage.onChanged.addListener((c, area) => { if (area === 'session' && c.pendingAsk?.newValue) takePendingAsk(); });
 
 const isStatusText = t => typeof t === 'string' && t.length <= 120 && !t.includes('\n') &&
   /^\p{Extended_Pictographic}/u.test(t.trim());
@@ -785,12 +830,13 @@ function onChatFrame(m) {
   if (m.type === 'chat.message' || m.type === 'chat.edit') {
     let entry = platformMsgs.get(m.message_id);
     // Hermes's mid-turn status sends ("🛶 outrigger_call...", "🧠 … recalled 1 memory") carry no
-    // public marker on plugin platforms, so a short one-line emoji-led message that arrives
-    // before this turn's reply is shown as a muted status line instead of a reply bubble.
-    if ((!entry && isStatusText(m.text) && platformBusy && platformFill && !platformFill.dataset.filled) || entry?.status) {
+    // public marker on plugin platforms, so a short one-line emoji-led message during a turn
+    // is shown as a muted status line in the turn's latest bubble instead of a bubble of its own.
+    const statusHost = platformFill?.isConnected ? platformFill : [...log.querySelectorAll('.msg.assistant')].pop();
+    if ((!entry && isStatusText(m.text) && platformBusy && statusHost) || entry?.status) {
       if (!entry) {
         const line = document.createElement('div'); line.className = 'status-line';
-        platformFill.querySelector('.calls').appendChild(line);
+        statusHost.querySelector('.calls').appendChild(line);
         entry = { el: line, status: true, text: '' };
         platformMsgs.set(m.message_id, entry);
       }
@@ -866,7 +912,7 @@ async function send() {
 
   const out = addAssistant(); let acc = '', raf = 0;
   currentOut = out;
-  controller = new AbortController(); setBusy(true);
+  controller = new AbortController(); setBusy(true); turnStarted = Date.now();
   // Hermes fixes a session's tools when it starts: attach before the first message.
   if (outrigger.state === 'connecting') await outrigger.ready(2000);
   const paint = () => { raf = 0; renderInto(out, acc, true); };
@@ -895,6 +941,7 @@ async function send() {
     }
     cancelAnimationFrame(raf); renderInto(out, acc || '_(empty response)_', false);
     if (acc) remember({ role: 'assistant', text: acc });
+    turnFinished(acc);
     addTools(out, acc, false);
   } catch (e) {
     cancelAnimationFrame(raf);

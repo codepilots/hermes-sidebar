@@ -314,5 +314,59 @@
     });
   }
 
-  globalThis.__hermes = { snapshot, click, fill, fillForm, scroll, waitFor, fetchAsUser, labels };
+  /* ---------- highlight: point at something without changing the page ---------- */
+  let hlTimer = 0;
+  function clearHighlight() {
+    clearTimeout(hlTimer);
+    document.getElementById('__hermes_hl')?.remove();
+    try { CSS.highlights.delete('hermes'); } catch {}
+  }
+
+  function findText(needle) {
+    const want = String(needle).toLowerCase();
+    const roots = [document.body];
+    for (let i = 0; i < roots.length; i++) {
+      const walker = document.createTreeWalker(roots[i], NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+      for (let n = walker.currentNode; n; n = walker.nextNode()) {
+        if (n.nodeType === 1) { if (n.shadowRoot) roots.push(n.shadowRoot); continue; }
+        const at = n.textContent.toLowerCase().indexOf(want);
+        if (at >= 0 && !SKIP.has(n.parentElement?.tagName)) {
+          const r = document.createRange(); r.setStart(n, at); r.setEnd(n, Math.min(n.textContent.length, at + want.length));
+          return r;
+        }
+      }
+    }
+    return null;
+  }
+
+  function highlight({ ref, selector, text, seconds = 6 } = {}) {
+    clearHighlight();
+    const ms = Math.min(Math.max(seconds, 1), 30) * 1000;
+    if (text) {
+      const range = findText(text);
+      if (!range) throw new Error(`Text not found: ${String(text).slice(0, 80)}`);
+      range.startContainer.parentElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if (!document.getElementById('__hermes_hl_style')) {
+        const st = document.createElement('style'); st.id = '__hermes_hl_style';
+        st.textContent = '::highlight(hermes){background:#ffd54a;color:#111}';
+        document.documentElement.append(st);
+      }
+      CSS.highlights.set('hermes', new Highlight(range));
+      hlTimer = setTimeout(clearHighlight, ms);
+      return { highlighted: 'text', text: range.toString().slice(0, 120) };
+    }
+    const el = resolve({ ref, selector });
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const box = document.createElement('div'); box.id = '__hermes_hl';
+    const place = () => { const r = el.getBoundingClientRect();
+      Object.assign(box.style, { position: 'fixed', left: r.left - 4 + 'px', top: r.top - 4 + 'px', width: r.width + 8 + 'px',
+        height: r.height + 8 + 'px', border: '3px solid #e0805a', borderRadius: '8px', boxShadow: '0 0 0 4000px rgba(0,0,0,.12)',
+        zIndex: 2147483647, pointerEvents: 'none', transition: 'all .15s' }); };
+    place(); document.documentElement.append(box);
+    const follow = setInterval(() => box.isConnected ? place() : clearInterval(follow), 100);
+    hlTimer = setTimeout(() => { clearInterval(follow); clearHighlight(); }, ms);
+    return { highlighted: describe(el, roleOf(el) || el.tagName.toLowerCase()) };
+  }
+
+  globalThis.__hermes = { snapshot, click, fill, fillForm, scroll, waitFor, fetchAsUser, labels, highlight };
 })();

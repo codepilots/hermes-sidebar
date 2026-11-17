@@ -55,6 +55,15 @@ attaches to its conversation's session and offers Hermes tools that run in this 
 | `fill_form` | fill several fields and optionally submit, on one card | yes* |
 | `open_url` | open an http(s) URL | yes* |
 | `reveal` | give Hermes the real values behind chosen placeholders | yes, always |
+| `highlight` | outline an element or highlight text to point something out | no |
+| `switch_tab` / `close_tab` | bring a tab to the front / close a tab Hermes opened (in a "Hermes" tab group) | no |
+| `screenshot` | capture the visible tab; Hermes looks at it with `vision_analyze` | yes (not redacted) |
+| `dev_watch` | console messages, errors and failed requests for N seconds, optionally after a reload | yes |
+| `search_history` / `search_bookmarks` | search your history / bookmarks (optional permissions, enable in settings) | yes, always |
+
+Right-click a selection, link, image or page and choose "Ask Hermes about…" to open
+the panel with it filled in. A notification tells you when a reply that took over
+20 s finishes while you are elsewhere (settings).
 | `run_js` | run JavaScript in the page (via `chrome.debugger`) | yes, shows the code |
 
 \* unless Hermes's reviewer approves it, or you allowed that kind of action on the site for this conversation.
@@ -105,7 +114,7 @@ Chrome shows its "started debugging this browser" bar briefly. It cannot run on
 
 ## Permissions
 
-It requests `<all_urls>`, `tabs`, `scripting`, `storage`, and `debugger` (for `run_js`). It can read any page you ask about, including logged-in pages. Turn off "include page" to stop attaching page text to your questions, and turn off browser tools in settings to stop Hermes calling tools in the browser.
+It requests `<all_urls>`, `tabs`, `scripting`, `storage`, `debugger` (for `run_js` and `dev_watch`), `contextMenus`, `tabGroups` and `notifications`; `history` and `bookmarks` are optional and only requested when you turn them on. It can read any page you ask about, including logged-in pages. Turn off "include page" to stop attaching page text to your questions, and turn off browser tools in settings to stop Hermes calling tools in the browser.
 
 ## License
 

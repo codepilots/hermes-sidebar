@@ -5,8 +5,8 @@ hermes-outrigger plugin (tools: `get_page`, `get_selection`, `list_tabs`,
 `run_js`, `click`, `fill`, `open_url`; confirm cards, per-site grants, LLM
 reviewer). Ranked by how much they address problems seen in real use.
 
-Status: 1–3 and 12 implemented; 13 phase 2 done (Outrigger platform P1-P3: chat, slash commands, prompt
-cards, autocomplete, media); 5 done (conversations survive closing the panel); 4–11 are proposals.
+Status: all implemented (2026-11-17). 13 phase 2 became the Outrigger platform
+(hermes-outrigger docs/platform.md, P1-P4); phase 1's header picker is covered by /model.; 4–11 are proposals.
 
 ---
 
@@ -63,7 +63,7 @@ a card each time; filling a form is one card per field.
 
 ---
 
-## 4. Right-click "Ask Hermes"
+## 4. Right-click "Ask Hermes" — implemented
 
 Context-menu entries for selection, link and image: open the panel with the item
 attached as context. Uses `contextMenus`; no gateway changes. Low risk.
@@ -74,34 +74,39 @@ Store `{sessionId, page state}` per window in `chrome.storage.session`; on open,
 reload the transcript from `GET /api/sessions/{id}/messages` and render it. Today
 closing the panel loses the visible conversation although Hermes keeps it.
 
-## 6. `highlight`
+## 6. `highlight` — implemented
 
 Outline and scroll to an element (ref/selector) or text passage for a few
 seconds, so Hermes can point instead of describe. `auto`; purely visual.
 
-## 7. Tab management
+## 7. Tab management — implemented
 
 `switch_tab {tab}`, `close_tab {tab}` (only tabs Hermes opened), and put tabs
 Hermes opens into a "Hermes" tab group (`tabGroups` permission) so they are easy
 to find and close.
 
-## 8. Notify when a long turn finishes
+## 8. Notify when a long turn finishes — implemented
 
 `chrome.notifications` when a reply completes while the panel is hidden or
 another tab is active. Optional in settings.
 
-## 9. `screenshot`
+## 9. `screenshot` — implemented
 
 Capture the visible tab (`captureVisibleTab`) for charts, images and layout.
-Needs plugin work: outrigger results are text; check whether Hermes accepts image
-content in tool results, then add an image result type to the protocol.
+As built: a plugin tool's result is text to the model (encoding the image as
+base64 or digits would only make a huge, meaningless string), so the sidebar
+returns `image: {mime, data}` and the plugin saves it under
+`plugin-data/outrigger/captures/` (png/jpeg/webp, 8 MB, newest 20) and returns
+`image_path`. Hermes opens it with its own `vision_analyze`, which shows it
+natively on vision-capable models and otherwise uses the auxiliary vision model.
+Confirm class "screenshots" (not redacted, so not reviewer-approved).
 
-## 10. Developer tools
+## 10. Developer tools — implemented
 
 `console_logs` and `failed_requests` through `chrome.debugger` (Runtime/Log and
 Network domains), for debugging the user's own web apps. Confirm class "code".
 
-## 11. Bookmarks and history search
+## 11. Bookmarks and history search — implemented
 
 `search_history {query}`, `search_bookmarks {query}` for recall ("that article
 last week"). Personal data across sites: always confirm, never auto-approved.
