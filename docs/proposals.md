@@ -421,21 +421,84 @@ Arguments:
 | `instruction` | what Hermes should do when woken; stored with the schedule and included in the wake message |
 | `expires` | default 30 days; `max_runs` is optional |
 
-**`list_schedules`** (auto) shows name, site, schedule, last and next run, the
-last result and whether it is paused.
+### Managing schedules: list and remove
 
-**`cancel_schedule {name}`** (auto: removing is always safe).
-**`pause_schedule` / `resume_schedule`** (auto).
+Hermes must be able to find schedules that are no longer needed and remove
+them, without relying on you to tidy up. Every schedule gets a stable `id`
+(e.g. `s_3f9a`) as well as its `name`.
+
+**`list_schedules {conversation?: "this" | "all", status?}`** (auto,
+read-only). Returns, for each schedule:
+
+| Field | Meaning |
+|---|---|
+| `id`, `name` | the stable id and the label |
+| `site`, `schedule` | the approved origin and the schedule as given |
+| `conversation` | which conversation it wakes, and `this: true` when it's the current one |
+| `created`, `expires` | when it was made and when it lapses |
+| `status` | `active`, `paused`, `failing` (auto-paused after errors) or `expired` |
+| `runs`, `wakes` | counts so far |
+| `last_run`, `last_wake`, `next_run` | timestamps |
+| `last_result` | a short excerpt (redacted) |
+| `last_error` | the last failure, if any |
+| `instruction` | what Hermes asked to do when woken |
+
+`conversation: "this"` is the default, so Hermes normally sees its own.
+
+**`cancel_schedule {ids: [...]}`** (auto: removing is always safe). Takes one
+or several ids or names. It deletes the schedule, its alarm and its stored
+results, and returns what was removed. If an id is unknown or already gone,
+that's reported, not treated as an error.
+
+**`pause_schedule` / `resume_schedule {ids}`** (auto). Resuming an expired or
+failing schedule keeps its approval, as long as the script and site haven't
+changed.
+
+**`schedule_script` with an existing `name`** in the same conversation
+replaces that schedule instead of adding a duplicate. This needs a new
+approval card, which shows the difference from the old version.
+
+### Helping Hermes notice schedules that are no longer used
+
+- **In the context.** The sidebar's context line, sent to Hermes each turn
+  (`context.update`), names the schedules tied to the current conversation:
+  `schedules: price-watch (hourly, last woke 2 d ago), ci-watch (paused)`.
+  Hermes doesn't need to remember them across compressions or sessions.
+- **In every wake message.** Each wake ends with: "If this schedule has done
+  its job, remove it with `cancel_schedule {ids: ["s_3f9a"]}`." A one-off
+  goal ("tell me when it drops below £50") then gets cleaned up in the same
+  turn that reports it.
+- **When `when_true` fires.** The script can return `{wake: true, done: true}`
+  to say the goal is met. The schedule pauses itself after this wake, and
+  Hermes is told so.
+- **Stale schedules.**
+  - These are schedules that haven't woken Hermes in 14 days, or whose
+    conversation was deleted.
+  - They're marked `stale: true` in `list_schedules`.
+  - They're named in the context line as "(stale)".
+  - Settings shows them in their own group, with "Remove all stale".
+- **Failing schedules.**
+  - Ten failures in a row (site gone, script throws, origin moved) pause a
+    schedule as `failing`.
+  - You get one notification.
+  - Hermes sees the status and `last_error` and can fix or remove it.
+- **Expiry.** This is the backstop: nothing runs past `expires` (30 days by
+  default) without being renewed.
 
 ### How a run works
 
 1. **Waking up.** `chrome.alarms` wakes the service worker on time. Missed
    runs (laptop asleep) collapse to a single run on wake. Alarms are
    persistent and survive browser restarts.
-2. **Finding the tab.** For `{url}`, a background tab is opened in a
-   minimized "Hermes" window and closed after the run. For `{match}`, the
-   oldest open tab that matches is used; if none is open, the run is
-   skipped.
+2. **Finding the tab.** For `{url}`, the page opens in an inactive tab in a
+   collapsed **"Scheduled" tab group** in the last-focused normal window. The
+   group is created on first use and reused afterwards. The tab closes after
+   the run, and the group disappears when empty. If no normal window is open,
+   the run waits for one, up to the next scheduled run. For `{match}`, the
+   oldest open tab that matches is used; if none is open, the run is skipped.
+   Tab groups are already used by `group_tabs` (proposal 7). They avoid a
+   second window, and a background tab in a normal window is throttled less
+   than a minimized window.
 3. **Checking the site.** The script runs only if the tab's origin still
    matches the one approved. A redirect elsewhere means the run is skipped
    and logged.
@@ -450,13 +513,27 @@ last result and whether it is paused.
 ### Waking Hermes
 
 **Delivery.**
-- The service worker opens its own short-lived outrigger connection, as
-  client `hermes-sidebar-scheduler` with the `chat` capability, and sends a
-  `chat.send` to the chat the schedule was created in. That runs a Hermes turn:
+- **Connecting on wake.** The service worker connects only when a run's
+  wake condition holds, and never holds a connection open. It opens a
+  short-lived outrigger connection as client `hermes-sidebar-scheduler`,
+  with the `chat` capability, the same endpoint and key or token as the
+  panel, and no tools. It then:
+  1. sends `chat.send` to the chat the schedule was created in, which runs a
+     Hermes turn;
+  2. waits for `chat.accepted`;
+  3. stays connected while that turn's reply streams, up to 5 minutes, so
+     the reply reaches the notification;
+  4. disconnects.
+
+  An open panel has its own connection and shows the reply live; otherwise it
+  appears when you open the panel (the conversation is stored). MV3 keeps the
+  service worker alive while the WebSocket is active (Chrome 116+).
+- The wake message:
   ```
   [Scheduled check "price-watch" · 2026-11-18 09:00 · example.com]
   Result (untrusted page data): {"price": 47.99, "was": 52.00}
   Your instruction when you scheduled this: tell me if it drops below £50.
+  If this schedule has done its job, remove it with cancel_schedule {ids: ["s_3f9a"]}.
   ```
 - Hermes's reply appears in that conversation, as a desktop notification
   (proposal 8), and in the panel when you next open it.
@@ -513,7 +590,11 @@ asks more of you than `run_js`:
 ### Phases
 
 - **S1, schedules and runs, without waking Hermes.**
-  - The tools, approval card, alarms, runner and local results log.
+  - `schedule_script`, `list_schedules`, `cancel_schedule` and
+    `pause_schedule` / `resume_schedule`.
+  - The approval card, alarms, the tab-group runner and the local results
+    log.
+  - Stale and failing flags, and the context line.
   - The settings section and kill switch.
   - Hermes can create schedules and read results with `list_schedules`.
 - **S2, waking Hermes.**
@@ -525,24 +606,40 @@ asks more of you than `run_js`:
   - Quieter execution for allow-listed sites: a content script with fixed
     extractors, such as CSS selectors, instead of free JavaScript.
 
-### Open questions
+### Decisions (2026-11-17)
 
-- Should schedules be allowed to act (click or fill), or only read? Proposed:
-  read-only in S1 and S2. Acting goes through a woken Hermes turn, with
-  cards.
-- Should runs use a separate minimized window, or a tab group in the current
-  window? A minimized window is less intrusive, but some sites throttle
-  background windows.
-- Should the scheduler's background connection stay open while schedules
-  exist? That's simpler, but MV3 service workers are short-lived. Proposed:
-  connect per wake.
+- **Lifecycle:** Hermes can list (`list_schedules`) and remove
+  (`cancel_schedule`, several at once) schedules it no longer needs. It's
+  reminded through the context line and every wake message. Stale and
+  failing schedules are flagged; expiry is the backstop.
+- **Where runs happen:** a collapsed "Scheduled" tab group in the
+  last-focused window, not a separate minimized window.
+- **Connection:** connect on wake only; no standing background connection.
+
+### Open question
+
+- Should schedules be allowed to act (click or fill), or only read?
+  Proposed: read-only in S1 and S2. Acting goes through a woken Hermes turn,
+  with cards.
 
 ### Testing
 
 - **Fake timers:** alarms fire, missed runs collapse, the origin check holds
   across redirects, and runs time out.
-- **Wake conditions:** `on_change`, `when_true`, `always` and `never`, plus
-  the cost caps.
+- **Wake conditions:** `on_change`, `when_true` (with and without `done`),
+  `always` and `never`, plus the cost caps.
+- **Lifecycle:**
+  - `list_schedules` for this conversation and for all of them;
+  - `cancel_schedule` with several ids, including unknown ones;
+  - replacing a schedule by name (re-approval with a diff);
+  - stale after 14 days without a wake, and when the conversation is deleted;
+  - auto-pause after 10 failures;
+  - the context line names this conversation's schedules.
+- **Tab group:** created once and reused, collapsed, the tab closed after
+  the run and the group removed when empty; a run with no window open waits.
+- **Connect on wake:** no socket while idle. On wake the worker connects,
+  sends, receives the streamed reply, notifies and disconnects. Offline
+  results queue and are delivered late.
 - **End to end:** the real extension, with the stand-in gateway and a local
   test page whose "price" changes. A wake reaches the platform as a
   `sched:` chat, with narrowed tools and a notification.
