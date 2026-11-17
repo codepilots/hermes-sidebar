@@ -34,8 +34,13 @@ let reviewerAuto = true;
 chrome.storage.local.get('reviewerAuto').then(v => { reviewerAuto = v.reviewerAuto !== false; });
 
 /* ---------- status ---------- */
+// One dot in the header. Idle and healthy: just the dot (details on hover); otherwise
+// the dot plus a word or two ("Thinking…", "No API key — open settings").
 function setStatus(kind, text) {
-  const s = $('status'); s.className = 'status' + (kind ? ' ' + kind : ''); $('statusText').textContent = text;
+  const s = $('status'), ts = $('toolsState');
+  const tools = ts.classList.contains('bad') ? ' tools-bad' : ts.classList.contains('wait') ? ' tools-wait' : '';
+  s.className = 'status ' + (kind || 'idle' + tools); $('statusText').textContent = text;
+  s.title = kind ? text : `${text} · ${$('toolsState').title || $('toolsState').dataset.label || ''}`.replace(/ · $/, '');
 }
 async function checkKey() {
   const { key = '' } = await chrome.storage.local.get('key');
@@ -59,10 +64,15 @@ const outrigger = new Outrigger({
   onWelcome: w => { if (w.platform?.available) { outrigger.chatAttach(chatId); outrigger.requestCommands(); } NB.reattach(); },
   onStatus: (state, detail) => {
     const [cls, text] = TOOL_LABEL[state] || TOOL_LABEL.off;
-    const el = $('toolsState'); el.className = 'tools-state ' + cls; el.textContent = text;
+    // Shown in the header only when it needs attention (connecting / offline); "on" and
+    // a deliberate "off" go in the status dot's tooltip.
+    const el = $('toolsState'); el.className = 'tools-state ' + cls;
+    el.textContent = cls === 'wait' || cls === 'bad' ? text : '';
+    el.dataset.label = text;
     el.title = detail || (state === 'attached'
-      ? 'Hermes can read pages and, with your approval, act in this browser'
-      : state === 'off' ? 'Turn on in settings' : '');
+      ? 'Browser tools on: Hermes can read pages and, with your approval, act in this browser'
+      : state === 'off' ? 'Browser tools off (settings)' : text);
+    if ($('status').classList.contains('idle')) setStatus('', $('statusText').textContent);
   },
 });
 
@@ -99,18 +109,24 @@ chrome.storage.onChanged.addListener((changes, area) => {
 syncOutrigger();
 
 /* ---------- current tab card ---------- */
+const GLOBE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>');
 async function tab() { const [t] = await chrome.tabs.query({ active: true, currentWindow: true }); return t; }
 async function showTab() {
   const t = await tab(); if (!t) return;
-  let host = ''; try { const u = new URL(t.url); host = u.protocol.startsWith('http') ? u.hostname.replace(/^www\./, '') : u.protocol.replace(':', ''); } catch {}
-  $('pageTitle').textContent = t.title || t.url || 'Untitled';
-  $('pageTitle').title = t.title || '';
-  $('pageHost').textContent = host;
-  const fav = $('favicon');
-  fav.src = t.favIconUrl && /^https?:|^data:/.test(t.favIconUrl) ? t.favIconUrl : 'icons/icon-16.png';
-  fav.onerror = () => { fav.onerror = null; fav.src = 'icons/icon-16.png'; };
+  let host = '', web = false;
+  try { const u = new URL(t.url); web = /^https?:$/.test(u.protocol); host = web ? u.hostname.replace(/^www\./, '') : u.protocol === 'file:' ? 'local file' : ''; } catch {}
+  // Chrome's own pages (settings, extensions, new tab, the Web Store) can't be read by extensions.
+  const restricted = !web && !/^file:/.test(t.url || '') || /^https:\/\/chrome(webstore)?\.google\.com\/webstore/.test(t.url || '');
+  if (restricted) host = "Chrome page — Hermes can't read this one";
   const summary = `active tab ${t.id}: "${(t.title || '').slice(0, 120)}" ${(t.url || '').slice(0, 160)}`;
   outrigger.setContext((await redactor.redact(summary, { url: t.url })).text);
+  if (document.querySelector('header.bar').classList.contains('note-mode')) return;
+  $('pageTitle').textContent = t.title || t.url || 'Untitled';
+  $('pageTitle').title = `${t.title || ''}\n${t.url || ''}`.trim();
+  $('pageHost').textContent = host;
+  const fav = $('favicon');
+  fav.src = !restricted && t.favIconUrl && /^https?:|^data:/.test(t.favIconUrl) ? t.favIconUrl : GLOBE;
+  fav.onerror = () => { fav.onerror = null; fav.src = GLOBE; };
 }
 chrome.tabs.onActivated.addListener(showTab);
 chrome.tabs.onUpdated.addListener((i, c) => (c.title || c.favIconUrl || c.url) && showTab());
@@ -493,7 +509,10 @@ autosize();
 function showView(v) {
   const note = v === 'note';
   $('noteView').hidden = !note;
-  $('log').hidden = note; $('pageCard').hidden = note; form.hidden = note;
+  $('log').hidden = note; form.hidden = note;
+  // In notes the header names the mode instead of the tab (the note's own bar shows which note).
+  document.querySelector('header.bar').classList.toggle('note-mode', note);
+  if (note) { $('pageTitle').textContent = 'Notes'; $('pageHost').textContent = 'on the Hermes host'; } else showTab();
   $('noteToggle').classList.toggle('active', note);
   $('noteToggle').title = note ? 'Back to chat' : 'Notes on the Hermes host';
   try { chrome.storage.session.set({ view: v }); } catch {}

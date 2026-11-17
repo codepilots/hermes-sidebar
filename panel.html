@@ -7,12 +7,15 @@
 </head>
 <body>
 <header class="bar">
-  <div class="brand">
-    <img src="icons/icon-32.png" alt="" class="logo">
-    <div class="brand-text">
-      <span class="name">Hermes</span>
-      <span class="status" id="status"><i class="dot"></i><span id="statusText">Ready</span></span>
-      <span class="tools-state off" id="toolsState">Browser tools off</span>
+  <div class="ctx">
+    <img id="favicon" class="favicon" alt="">
+    <div class="ctx-text">
+      <div class="page-title" id="pageTitle">—</div>
+      <div class="ctx-sub">
+        <span class="page-host" id="pageHost"></span>
+        <span class="status" id="status" role="status"><i class="dot"></i><span id="statusText"></span></span>
+        <span class="tools-state off" id="toolsState"></span>
+      </div>
     </div>
   </div>
   <div class="actions">
@@ -27,14 +30,6 @@
     </button>
   </div>
 </header>
-
-<section class="page-card" id="pageCard">
-  <img id="favicon" class="favicon" alt="">
-  <div class="page-meta">
-    <div class="page-title" id="pageTitle">—</div>
-    <div class="page-host" id="pageHost"></div>
-  </div>
-</section>
 
 <section id="noteView" class="note-view" hidden>
   <div class="note-bar">

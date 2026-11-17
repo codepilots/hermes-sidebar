@@ -100,7 +100,7 @@ for further integration ideas.
 Calls show up inside Hermes's reply; approval cards show the exact code or arguments.
 While attached, the active tab's title and URL are shared with Hermes as context
 for each turn. Turn the whole feature off with "Let Hermes use this browser" in
-settings. The header shows whether browser tools are on, connecting or offline.
+settings. The panel header shows the current tab and one status dot: green when ready (hover for details), with a word or two when Hermes is working or browser tools are connecting or offline.
 
 Gateway setup (once):
 

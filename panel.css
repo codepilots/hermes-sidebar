@@ -25,7 +25,7 @@ button{font:inherit;color:inherit}
 svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
 /* header */
-.bar{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 8px 8px 14px;border-bottom:1px solid var(--border);background:var(--surface)}
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
 .logo{width:28px;height:28px;border-radius:8px}
 .brand-text{display:flex;flex-direction:column;line-height:1.15}
@@ -40,14 +40,19 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .icon-btn:hover{background:var(--surface-2);color:var(--text)}
 .icon-btn:focus-visible,.chip:focus-visible,.send:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-/* page card */
-.page-card{display:flex;align-items:center;gap:10px;margin:10px 12px 0;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;transition:opacity .2s}
-
-.favicon{width:16px;height:16px;flex:none;border-radius:3px}
-.page-meta{flex:1;min-width:0}
-.page-title,.page-host{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.page-title{font-size:12.5px;font-weight:550}
-.page-host{font-size:11px;color:var(--faint)}
+/* panel header: the current tab + one status line (Chrome's title bar already shows the name) */
+.bar .ctx{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.favicon{width:18px;height:18px;flex:none;border-radius:4px}
+.ctx-text{min-width:0;flex:1;line-height:1.25}
+.page-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctx-sub{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--faint);min-width:0;white-space:nowrap}
+.page-host{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ctx-sub .status{font-size:11.5px;flex:none}
+.status.idle #statusText{display:none}
+.ctx-sub .tools-state::before{display:none}  /* the status dot carries the colour */
+.status.idle.tools-wait .dot{background:var(--warn)}
+.status.idle.tools-bad .dot{background:var(--err-ink)}
+.bar.note-mode .favicon{display:none}
 
 .switch{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;flex:none}
 .switch input{position:absolute;opacity:0;pointer-events:none}
@@ -87,7 +92,8 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .stopped{font-size:11px;color:var(--faint);font-style:italic}
 
 /* browser tools */
-.tools-state{font-size:10.5px;color:var(--faint);display:flex;align-items:center;gap:5px}
+.tools-state{font-size:11.5px;color:var(--faint);display:flex;align-items:center;gap:5px}
+.tools-state:empty,.tools-state.on{display:none}
 .tools-state::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--faint)}
 .tools-state.on::before{background:var(--ok)}
 .tools-state.wait::before{background:var(--warn)}
@@ -131,7 +137,7 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .cmd-desc{grid-column:1/-1;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .media-file{display:inline-block;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);text-decoration:none;color:var(--text)}
 /* Notebook mode */
-.page-card[hidden],#log[hidden],form.composer[hidden]{display:none}
+#log[hidden],form.composer[hidden]{display:none}
 #noteToggle.active{color:var(--accent);background:var(--accent-soft)}
 .note-view{flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
 .note-view[hidden]{display:none}
