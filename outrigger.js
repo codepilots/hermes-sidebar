@@ -15,8 +15,8 @@ class Outrigger {
    * @param {Function} o.onChat    (frame) => void for Outrigger-platform chat.* frames
    * @param {Function} o.onWelcome (welcome) => void, after every (re)attach
    */
-  constructor({ tools, onCall, onCancel, onStatus, onChat, onWelcome, onDoc }) {
-    Object.assign(this, { tools, onCall, onCancel, onStatus, onChat, onWelcome, onDoc });
+  constructor({ tools, onCall, onCancel, onStatus, onChat, onWelcome, onDoc, name = 'hermes-sidebar', label = 'Chromium side panel' }) {
+    Object.assign(this, { tools, onCall, onCancel, onStatus, onChat, onWelcome, onDoc, name, label });
     this.platformAvailable = false;
     this.ws = null; this.cfg = null; this.stopped = true;
     this.attached = false; this.retry = 0; this.timer = 0; this.summary = '';
@@ -75,8 +75,8 @@ class Outrigger {
     ws.onopen = () => this._send({
       // Protocol 2 adds the Outrigger platform: chat through Hermes's messaging pipeline.
       type: 'hello', protocol: 2, capabilities: ['chat', 'edits', 'model_picker', 'choices', 'clarify', 'approvals', 'media', 'notebook'],
-      client: { name: 'hermes-sidebar', version: chrome.runtime.getManifest().version,
-                kind: 'chromium-extension', label: 'Chromium side panel', concurrency: 1 },
+      client: { name: this.name, version: chrome.runtime.getManifest().version,
+                kind: 'chromium-extension', label: this.label, concurrency: 1 },
       session_id: this.cfg.sessionId, tools: this.tools,
       ...(this.redaction ? { redaction: this.redaction } : {}),
     });

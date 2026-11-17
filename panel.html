@@ -47,6 +47,16 @@
     <span class="note-path" id="notePath">No note open</span>
     <span class="note-status" id="noteStatus"></span>
   </div>
+  <div class="note-tools">
+    <button id="noteAsk" disabled title="Ask Hermes about the selected text (Ctrl+/)">Ask about selection</button>
+    <button id="notePreviewBtn" title="Show the note rendered">Preview</button>
+    <button id="noteTab" title="Open this note in a full tab">Open in tab ↗</button>
+  </div>
+  <div class="note-ask" id="noteAskBox" hidden>
+    <span id="noteAskWhat"></span>
+    <input id="noteAskInput" placeholder="What should Hermes do with it?" spellcheck="true">
+    <button id="noteAskSend">Send</button><button id="noteAskCancel">Cancel</button>
+  </div>
   <div class="note-banner busy" id="noteLock" hidden>Hermes is working on: <b id="noteLockText"></b>
     <button id="noteStop">Stop</button></div>
   <div class="note-banner bad" id="noteConflict" hidden>This note changed elsewhere and the edits overlap.
@@ -55,6 +65,7 @@
     <button id="noteUndo">Undo Hermes's change</button><button id="noteKeep">Keep</button></div>
   <div id="notePrompts" class="note-prompts"></div>
   <div id="noteEditor" class="note-editor"></div>
+  <div id="notePreview" class="note-preview body" hidden></div>
   <div id="notePicker" class="note-picker" hidden>
     <input id="notePickQuery" placeholder="Search notes…" spellcheck="false">
     <ul id="notePickList"></ul>
@@ -96,6 +107,7 @@
 <script src="vendor/editor.js"></script>
 <script src="notebook.js"></script>
 <script src="outrigger.js"></script>
+<script src="prompts.js"></script>
 <script src="browser-tools.js"></script>
 <script src="panel.js"></script>
 </body>

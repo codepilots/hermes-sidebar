@@ -74,6 +74,12 @@ changed lines highlighted, and **Undo Hermes's change**. Enter anywhere else in 
 `//` line is an ordinary newline. Prompts Hermes raises meanwhile (approvals,
 questions) appear in the Note view.
 
+Select text and press **Ctrl+/** (or "Ask about selection") to give Hermes an
+instruction about just those lines, without typing a `//` line. **Preview** shows
+the note rendered, and **Open in tab** opens the same editor full width
+(`notebook.html`). The tab and the panel stay in sync, and each shows Hermes's
+prompts for the commands it started.
+
 Right-click a selection, link, image or page and choose "Ask Hermes about…" to open
 the panel with it filled in. A notification tells you when a reply that took over
 20 s finishes while you are elsewhere (settings).

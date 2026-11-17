@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<title>Hermes notes</title>
+<link rel="stylesheet" href="panel.css">
+<style>
+  body{display:flex;flex-direction:column;height:100vh}
+  .note-view{max-width:900px;width:100%;margin:0 auto;border-left:1px solid var(--border);border-right:1px solid var(--border)}
+  .note-editor .cm-editor{font-size:14.5px}
+  .note-editor .cm-content{padding:0 28px}
+  .note-preview{padding:20px 32px;font-size:15px}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <img src="icons/icon-32.png" alt="" class="logo">
+    <div class="brand-text">
+      <span class="name">Hermes notes</span>
+      <span class="status" id="status"><i class="dot"></i><span id="statusText">Connecting…</span></span>
+    </div>
+  </div>
+</header>
+<section id="noteView" class="note-view">
+  <div class="note-bar">
+    <button class="note-open" id="noteOpen" title="Open a note">Open note…</button>
+    <span class="note-path" id="notePath">No note open</span>
+    <span class="note-status" id="noteStatus"></span>
+  </div>
+  <div class="note-tools">
+    <button id="noteAsk" disabled title="Ask Hermes about the selected text (Ctrl+/)">Ask about selection</button>
+    <button id="notePreviewBtn" title="Show the note rendered">Preview</button>
+    
+  </div>
+  <div class="note-ask" id="noteAskBox" hidden>
+    <span id="noteAskWhat"></span>
+    <input id="noteAskInput" placeholder="What should Hermes do with it?" spellcheck="true">
+    <button id="noteAskSend">Send</button><button id="noteAskCancel">Cancel</button>
+  </div>
+  <div class="note-banner busy" id="noteLock" hidden>Hermes is working on: <b id="noteLockText"></b>
+    <button id="noteStop">Stop</button></div>
+  <div class="note-banner bad" id="noteConflict" hidden>This note changed elsewhere and the edits overlap.
+    <button id="noteTheirs">Use theirs</button><button id="noteMine">Keep mine</button></div>
+  <div class="note-banner ok" id="noteResult" hidden><span id="noteResultText"></span>
+    <button id="noteUndo">Undo Hermes's change</button><button id="noteKeep">Keep</button></div>
+  <div id="notePrompts" class="note-prompts"></div>
+  <div id="noteEditor" class="note-editor"></div>
+  <div id="notePreview" class="note-preview body" hidden></div>
+  <div id="notePicker" class="note-picker" hidden>
+    <input id="notePickQuery" placeholder="Search notes…" spellcheck="false">
+    <ul id="notePickList"></ul>
+  </div>
+</section>
+<script src="vendor/marked.umd.js"></script>
+<script src="vendor/purify.min.js"></script>
+<script src="vendor/highlight.min.js"></script>
+<script src="markdown.js"></script>
+<script src="outrigger.js"></script>
+<script src="prompts.js"></script>
+<script src="vendor/editor.js"></script>
+<script src="notebook.js"></script>
+<script src="notebook-page.js"></script>
+</body>
+</html>

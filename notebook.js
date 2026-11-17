@@ -77,14 +77,18 @@ const NB = (() => {
     st.view = new E.EditorView({
       parent: $('noteEditor'),
       state: E.EditorState.create({ doc: '', extensions: [
-        E.keymap.of([{ key: 'Enter', run: onEnter }]),
+        E.keymap.of([{ key: 'Enter', run: onEnter }, { key: 'Mod-/', run: () => { askSelection(); return true; } }]),
         E.history(), E.drawSelection(), E.highlightActiveLine(), E.search(),
         E.keymap.of([...E.defaultKeymap, ...E.historyKeymap, ...E.searchKeymap, E.indentWithTab]),
         E.markdown(), E.syntaxHighlighting(E.defaultHighlightStyle, { fallback: true }),
         E.EditorView.lineWrapping, editable.of(E.EditorView.editable.of(true)),
         E.placeholder('Type here. Start a line with // to ask Hermes, e.g. //correct my spelling'),
         commandStyle, changedField,
-        E.EditorView.updateListener.of(u => { if (u.docChanged && !st.applying) { clearHighlight(); scheduleSave(); } }),
+        E.EditorView.updateListener.of(u => {
+          if (u.docChanged && !st.applying) { clearHighlight(); scheduleSave(); }
+          if (u.docChanged && previewOn()) renderPreview();
+          if (u.selectionSet || u.docChanged) $('noteAsk').disabled = st.locked || st.view.state.selection.main.empty;
+        }),
       ] }),
     });
   }
@@ -131,9 +135,49 @@ const NB = (() => {
     outrigger._send({ type: 'doc.command', doc_id: st.doc.doc_id, base_version: st.version, line: lineNo, instruction });
   }
 
+  /* ---------- a command on the selected lines (no // line) ---------- */
+  function selectedLines() {
+    const s = st.view.state.selection.main;
+    if (s.empty) return null;
+    const doc = st.view.state.doc;
+    let a = doc.lineAt(s.from).number, b = doc.lineAt(s.to).number;
+    if (b > a && s.to === doc.line(b).from) b -= 1;  // a selection ending at a line start stops above it
+    return { from_line: a, to_line: b };
+  }
+  function askSelection() {
+    if (st.locked || !st.doc) return;
+    const sel = selectedLines();
+    if (!sel) { status('Select some text first', 'warn'); return; }
+    const box = $('noteAskBox');
+    $('noteAskWhat').textContent = sel.from_line === sel.to_line ? `Line ${sel.from_line}` : `Lines ${sel.from_line}–${sel.to_line}`;
+    box.hidden = false; box.dataset.sel = JSON.stringify(sel);
+    const inp = $('noteAskInput'); inp.value = ''; inp.focus();
+  }
+  async function sendSelectionCommand() {
+    const box = $('noteAskBox'), instruction = $('noteAskInput').value.trim();
+    if (!instruction) return;
+    const sel = JSON.parse(box.dataset.sel || 'null');
+    box.hidden = true;
+    try { await save(); } catch { return; }
+    status('Sending to Hermes…');
+    outrigger._send({ type: 'doc.command', doc_id: st.doc.doc_id, base_version: st.version, selection: sel, instruction });
+  }
+
+  /* ---------- preview ---------- */
+  const previewOn = () => !$('notePreview').hidden;
+  function renderPreview() { $('notePreview').innerHTML = renderMarkdown(text()); }
+  function togglePreview() {
+    const on = !previewOn();
+    $('notePreview').hidden = !on; $('noteEditor').hidden = on;
+    $('notePreviewBtn').classList.toggle('active', on);
+    $('notePreviewBtn').textContent = on ? 'Edit' : 'Preview';
+    if (on) renderPreview(); else st.view.focus();
+  }
+
   function showLock(lock) {
     st.locked = true; st.lock = lock; st.summary = '';
-    setEditable(false);
+    setEditable(false); $('noteAsk').disabled = true; $('noteAskBox').hidden = true;
+    $('notePrompts').innerHTML = '';  // cards from an earlier command
     $('noteResult').hidden = true;
     $('noteLockText').textContent = lock.instruction || '';
     $('noteLock').hidden = false;
@@ -277,6 +321,15 @@ const NB = (() => {
   function init() {
     makeView();
     $('noteOpen').onclick = () => openPicker('');
+    $('noteAsk').onclick = askSelection;
+    $('noteAskSend').onclick = sendSelectionCommand;
+    $('noteAskCancel').onclick = () => { $('noteAskBox').hidden = true; st.view.focus(); };
+    $('noteAskInput').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); sendSelectionCommand(); }
+      if (e.key === 'Escape') { $('noteAskBox').hidden = true; st.view.focus(); } };
+    $('notePreviewBtn').onclick = togglePreview;
+    const tabBtn = $('noteTab');
+    if (tabBtn) tabBtn.onclick = () => { if (!st.doc) return; save().catch(() => {});
+      chrome.tabs.create({ url: chrome.runtime.getURL(`notebook.html?root=${encodeURIComponent(st.doc.root)}&path=${encodeURIComponent(st.doc.path)}`) }); };
     $('notePickQuery').oninput = e => { clearTimeout(pickTimer); pickTimer = setTimeout(() => requestList(e.target.value), 200); };
     $('notePickQuery').onkeydown = e => { if (e.key === 'Escape') $('notePicker').hidden = true;
       if (e.key === 'Enter') $('notePickList').querySelector('li:not(.empty-row)')?.click(); };
@@ -296,5 +349,5 @@ const NB = (() => {
   }
 
   const isNoteChat = id => !!st.noteChat && id === st.noteChat;
-  return { init, onFrame, onChat, openPicker, reattach, isNoteChat, get active() { return !!st.doc; }, save };
+  return { init, onFrame, onChat, openPicker, open, reattach, isNoteChat, get active() { return !!st.doc; }, save };
 })();
