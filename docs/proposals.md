@@ -5,7 +5,7 @@ hermes-outrigger plugin (tools: `get_page`, `get_selection`, `list_tabs`,
 `run_js`, `click`, `fill`, `open_url`; confirm cards, per-site grants, LLM
 reviewer). Ranked by how much they address problems seen in real use.
 
-Status: all implemented (2026-11-17). 13 phase 2 became the Outrigger platform
+Status: 1-14 implemented (2026-11-17). 13 phase 2 became the Outrigger platform
 (hermes-outrigger docs/platform.md, P1-P4); phase 1's header picker is covered by /model. 15 (scheduled browser scripts) and 16 (the agent's name) are proposed.
 
 ---
