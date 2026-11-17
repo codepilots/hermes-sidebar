@@ -48,14 +48,15 @@
     <div class="row"><input id="endpoint" placeholder="http://127.0.0.1:8642" spellcheck="false"></div>
   </div>
   <div class="field">
-    <label for="key">API key</label>
+    <label for="key">API key or Outrigger token</label>
     <div class="row">
       <input id="key" type="password" spellcheck="false" autocomplete="off">
       <button class="icon-btn" id="reveal" type="button" title="Show / hide" aria-label="Show or hide key">
         <svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
     </div>
-    <small><code>API_SERVER_KEY</code> from <code>~/.hermes/.env</code></small>
+    <small><code>API_SERVER_KEY</code> from <code>~/.hermes/.env</code>, or a client token from
+      <code>hermes outrigger pair --user &lt;id&gt;</code> (<code>otr_…</code>: chat goes through the Outrigger platform only).</small>
   </div>
   <div class="field">
     <label class="toggle"><input type="checkbox" id="browserTools"> Let Hermes use this browser</label>

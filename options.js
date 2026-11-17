@@ -30,9 +30,31 @@ async function save() {
 document.getElementById('save').onclick = save;
 [e, k].forEach(i => i.addEventListener('keydown', ev => { if (ev.key === 'Enter') save(); }));
 
+// A client token (otr_…) only opens the outrigger WebSocket: test that instead of /v1/models.
+function testToken(base, token) {
+  return new Promise(resolve => {
+    let ws;
+    try { ws = new WebSocket(base.replace(/^http/, 'ws') + '/v1/outrigger/ws', ['hermes-outrigger.v1', 'bearer.' + token]); }
+    catch { return resolve("Can't reach gateway"); }
+    const t = setTimeout(() => { ws.close(); resolve('No answer from the gateway'); }, 5000);
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', protocol: 2, client: { name: 'hermes-sidebar-test' }, tools: [], capabilities: ['chat'] }));
+    ws.onmessage = ev => {
+      clearTimeout(t); ws.close();
+      try { const m = JSON.parse(ev.data);
+        resolve(m.type === 'welcome' ? (m.platform?.available ? 'ok' : 'Token accepted, but the Outrigger platform is off') : (m.message || 'Refused'));
+      } catch { resolve('Unexpected reply'); }
+    };
+    ws.onclose = ev => { clearTimeout(t); resolve(ev.code === 1006 ? 'Token rejected or gateway unreachable' : 'Closed'); };
+  });
+}
+
 document.getElementById('test').onclick = async () => {
   say('Testing…');
   const base = e.value.trim().replace(/\/$/, '');
+  if (/^otr_/.test(k.value.trim())) {
+    const r = await testToken(base, k.value.trim());
+    return r === 'ok' ? say('Connected with token ✓', 'ok') : say(r, 'bad');
+  }
   try {
     const r = await fetch(base + '/v1/models', { headers: { Authorization: 'Bearer ' + k.value.trim() } });
     if (r.ok) say('Connected ✓', 'ok');

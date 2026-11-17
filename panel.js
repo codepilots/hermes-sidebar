@@ -17,6 +17,7 @@ let controller = null, lastQuestion = '', currentOut = null;
 const newChatId = () => 'c-' + crypto.randomUUID();
 let chatId = newChatId();
 let platformPref = true;      // settings: "Chat through the Outrigger platform"
+let usingToken = false;       // key is an outrigger client token (otr_…): platform only
 let platformBusy = false;     // a platform turn is in progress (typing/messages arriving)
 let platformIdle = 0;         // timer that ends the busy state after a quiet spell
 const platformMsgs = new Map(); // message_id -> { el, text }
@@ -78,6 +79,7 @@ async function syncOutrigger() {
   const { endpoint = DEFAULT_ENDPOINT, key = '', browserTools = true, platformChat = true } =
     await chrome.storage.local.get(['endpoint', 'key', 'browserTools', 'platformChat']);
   platformPref = platformChat;
+  usingToken = /^otr_/.test(key);
   if (!key || !browserTools) return outrigger.stop();
   outrigger.start({ endpoint, key, sessionId });
 }
@@ -472,7 +474,7 @@ $('settings').onclick = () => chrome.runtime.openOptionsPage();
 $('clear').onclick = () => {
   if (controller) controller.abort();
   for (const c of pendingCards.values()) c.cancel('cancelled');
-  sessionId = newSessionId(); outrigger.bind(sessionId); grants = new Set(); lastSentPage = null; redactor.reset();
+  sessionId = newSessionId(); if (!usingToken) outrigger.bind(sessionId); grants = new Set(); lastSentPage = null; redactor.reset();
   chatId = newChatId(); platformMsgs.clear(); platformFill = null; setPlatformBusy(false);
   log.querySelectorAll('.msg').forEach(m => m.remove()); empty.hidden = false; q.focus();
   transcript = []; forget();
@@ -753,7 +755,7 @@ async function restore() {
   }
   // Point the connection at the restored conversation; replies that came while the
   // panel was closed are delivered from the plugin's outbox on attach.
-  outrigger.bind(sessionId);
+  if (!usingToken) outrigger.bind(sessionId);
   if (outrigger.attached && outrigger.platformAvailable) outrigger.chatAttach(chatId);
 }
 chrome.windows.getCurrent().then(w => { storeKey = 'conv-' + w.id; restore(); }).catch(() => {});
@@ -856,6 +858,11 @@ async function send() {
   addUser(text, tag, red.found);
   remember({ role: 'user', text, tag: tag + (red.found.length ? (tag ? ' · ' : '') + `🛡 ${red.found.length} redacted` : '') });
   if (usePlatform()) return sendViaPlatform(content, pageSent);
+  if (/^otr_/.test(key)) {  // client tokens can only chat through the Outrigger platform
+    const m = addAssistant(); m.classList.add('err');
+    m.querySelector('.body').textContent = 'Chatting with an Outrigger token needs the Outrigger platform, which is not available right now (gateway offline, plugin platform off, or "Chat through the Outrigger platform" unchecked in settings).';
+    return;
+  }
 
   const out = addAssistant(); let acc = '', raf = 0;
   currentOut = out;

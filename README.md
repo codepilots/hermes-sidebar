@@ -6,7 +6,7 @@ A Chromium side panel for asking Hermes (Sorrel) about the page you're reading.
 
 1. Open `chrome://extensions`, turn on Developer mode.
 2. Click "Load unpacked" and select this folder.
-3. Open the extension's settings and paste your Hermes `API_SERVER_KEY`. The endpoint defaults to `http://127.0.0.1:8642`.
+3. Open the extension's settings and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint).
 
 ## How it works
 
