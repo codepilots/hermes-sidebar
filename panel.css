@@ -42,7 +42,7 @@ svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 
 /* page card */
 .page-card{display:flex;align-items:center;gap:10px;margin:10px 12px 0;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;transition:opacity .2s}
-.page-card.off{opacity:.55}
+
 .favicon{width:16px;height:16px;flex:none;border-radius:3px}
 .page-meta{flex:1;min-width:0}
 .page-title,.page-host{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

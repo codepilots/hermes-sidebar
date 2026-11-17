@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
-const log = $('log'), q = $('q'), inc = $('inc'), form = $('f'), sendBtn = $('send'), empty = $('empty');
+const log = $('log'), q = $('q'), form = $('f'), sendBtn = $('send'), empty = $('empty');
 const MAX = 60000;
-const SYSTEM = 'The user is asking from a Chromium sidebar about the web page they are reading. Page context is attached to their messages. Be concise. Replies render as GitHub-flavoured Markdown in a narrow panel: use headings, bullet and numbered lists, task lists, tables, block quotes, links and fenced code blocks with a language tag where they help; prefer short tables (3-4 columns).';
+const SYSTEM = 'The user is asking from a Chromium side panel next to the web page they are reading. When the browser tools are attached you know the active tab (title and URL) and can read it with get_page or snapshot when the question needs it; otherwise page context is attached to their messages. Text the user selected is attached. Be concise. Replies render as GitHub-flavoured Markdown in a narrow panel: use headings, bullet and numbered lists, task lists, tables, block quotes, links and fenced code blocks with a language tag where they help; prefer short tables (3-4 columns).';
 const ICON_COPY = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
 const ICON_OK = '<svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>';
 const ICON_RETRY = '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
@@ -116,9 +116,6 @@ chrome.tabs.onActivated.addListener(showTab);
 chrome.tabs.onUpdated.addListener((i, c) => (c.title || c.favIconUrl || c.url) && showTab());
 showTab();
 
-const syncInc = () => $('pageCard').classList.toggle('off', !inc.checked);
-inc.addEventListener('change', () => { syncInc(); chrome.storage.local.set({ includePage: inc.checked }); });
-chrome.storage.local.get('includePage').then(v => { if (v.includePage === false) inc.checked = false; syncInc(); });
 
 async function sha256(s) {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -706,7 +703,6 @@ async function takePendingAsk() {
     : a.kind === 'link' ? `About this link: ${a.url}\n`
     : a.kind === 'image' ? `About this image: ${a.url}\n`
     : 'About this page: ';
-  if (a.kind === 'page' && !inc.checked) { inc.checked = true; syncInc(); }
   autosize(); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
 }
 chrome.storage.onChanged.addListener((c, area) => { if (area === 'session' && c.pendingAsk?.newValue) takePendingAsk(); });
@@ -794,7 +790,19 @@ async function send() {
   let content = text, tag = '', pageSent = null;
   // Slash commands go to Hermes as typed (no page attached), through the platform.
   const isCommand = text.startsWith('/') && usePlatform();
-  if (inc.checked && !isCommand) {
+  // With browser tools attached, Hermes already sees the active tab (title, URL) and reads
+  // it with get_page/snapshot when it needs to, so only a selection is attached. Without
+  // them (tools off or offline) the page is attached as before, once per conversation.
+  const toolsAttached = outrigger.attached;
+  if (toolsAttached && !isCommand) {
+    const p = await grab();
+    const newSel = p.sel && !(lastSentPage && lastSentPage.url === p.url && lastSentPage.sel === p.sel);
+    if (newSel) {
+      content = `[Selected text on ${p.title || p.url}]\n${p.sel.slice(0, MAX)}\n\n[Question]\n${text}`;
+      tag = '＋ selection';
+      pageSent = { url: p.url, textHash: lastSentPage?.url === p.url ? lastSentPage.textHash : '', sel: p.sel };
+    }
+  } else if (!isCommand) {
     const p = await grab();
     const pageText = (p.text || '').slice(0, MAX);
     const textHash = await sha256(pageText);

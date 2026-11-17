@@ -11,8 +11,8 @@ A Chromium side panel for asking Hermes (Sorrel) about the page you're reading.
 ## How it works
 
 - Opens as a side panel (default shortcut Alt+H, or the toolbar button).
-- With "include page" on, it reads the current tab's text and selection and sends them with your question to the local gateway at `/v1/chat/completions`.
-  Within a conversation the page text is sent once: later questions about the same, unchanged page send only its title and URL (and any new selection). Switching tabs, the page changing, or a new conversation sends it again.
+- There is no page switch: with browser tools attached, Hermes knows the active tab (title and URL) and reads it with `get_page` / `snapshot` when a question needs it. Text you have selected is sent with your question (once per selection).
+  When browser tools are off or offline, the sidebar attaches the page itself, once per conversation: later questions about the same, unchanged page send only its title and URL (and any new selection); switching tabs, the page changing, or a new conversation sends it again.
 - The API key is stored in `chrome.storage.local`.
 - The service worker strips the `Origin` header on calls to the local gateway (HTTP and WebSocket), because the gateway rejects unknown origins with 403.
 - Replies render as GitHub-flavoured Markdown (nested and task lists, tables with alignment, quotes, https images, syntax-highlighted code with a copy button) using vendored marked, DOMPurify and highlight.js (`vendor/`). Raw HTML in replies is shown as text, and output is sanitized.
@@ -138,7 +138,7 @@ Chrome shows its "started debugging this browser" bar briefly. It cannot run on
 
 ## Permissions
 
-It requests `<all_urls>`, `tabs`, `scripting`, `storage`, `debugger` (for `run_js` and `dev_watch`), `contextMenus`, `tabGroups` and `notifications`; `history` and `bookmarks` are optional and only requested when you turn them on. It can read any page you ask about, including logged-in pages. Turn off "include page" to stop attaching page text to your questions, and turn off browser tools in settings to stop Hermes calling tools in the browser.
+It requests `<all_urls>`, `tabs`, `scripting`, `storage`, `debugger` (for `run_js` and `dev_watch`), `contextMenus`, `tabGroups` and `notifications`; `history` and `bookmarks` are optional and only requested when you turn them on. It can read any page you ask about, including logged-in pages. Turn off browser tools in settings to stop Hermes reading pages and calling tools in the browser (the sidebar then attaches the current page to your questions instead).
 
 ## License
 
