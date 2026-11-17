@@ -6,7 +6,7 @@ A Chromium side panel for asking Hermes (Sorrel) about the page you're reading.
 
 1. Open `chrome://extensions`, turn on Developer mode.
 2. Click "Load unpacked" and select this folder.
-3. Open the extension's settings and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint).
+3. Open the extension's settings (Connection) and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint).
 
 ## How it works
 
@@ -143,3 +143,10 @@ It requests `<all_urls>`, `tabs`, `scripting`, `storage`, `debugger` (for `run_j
 ## License
 
 MIT. See LICENSE.
+
+Bundled third-party code (in `vendor/`) keeps its own licence: marked (MIT),
+DOMPurify (Apache-2.0, dual-licensed with MPL-2.0), highlight.js (BSD-3-Clause),
+@arcjet/redact (Apache-2.0), compromise (MIT), CodeMirror 6 and Lezer (MIT) and
+diff-match-patch (Apache-2.0). Each licence text ships as `vendor/LICENSE.*`, and
+settings → About lists them with versions, copyright holders and the full texts
+(`credits.js`; update it alongside `vendor/README.md` when a bundle is rebuilt).
