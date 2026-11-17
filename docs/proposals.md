@@ -363,3 +363,19 @@ on it.
   outbound requests). An unknown command makes no request until the user picks
   "Send as a message".
 - Phase 2: see the testing section of `hermes-outrigger/docs/platform.md`.
+
+## 14. Notebook mode: edit notes on the Hermes host, with `//` commands
+
+Open a Markdown note that lives on the Hermes machine (for example the
+`~/vaults/notes` Obsidian vault) in a Note view, edit it with autosave back to
+the file, and type a line starting with `//` (`//correct my spelling`,
+`//flesh this out`, `//find some relevant links`) to have Hermes do it.
+
+The flow: Hermes removes the line, the editor pauses while Hermes works on the
+paragraph or section above, the changes land live, and the editor unlocks with a
+summary, a diff highlight and Undo.
+
+The file handling, versions and conflict handling with Obsidian, locks, and the
+Hermes side (the note's own chat on the Outrigger platform, and the scoped
+`notebook_read` / `notebook_edit` tools) live in the outrigger plugin. Full
+design: `hermes-outrigger/docs/notebook.md` (milestones N1-N4).
