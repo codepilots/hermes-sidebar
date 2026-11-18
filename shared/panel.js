@@ -141,8 +141,8 @@ async function sha256(s) {
 async function grab() {
   const t = await tab();
   try {
-    const [r] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => ({ sel: String(getSelection()), text: document.body ? document.body.innerText : '' }) });
-    return { url: t.url, title: t.title, ...r.result };
+    const r = await Platform.executeInPage(t.id, () => ({ sel: String(getSelection()), text: document.body ? document.body.innerText : '' }));
+    return { url: t.url, title: t.title, ...r };
   } catch (e) { return { url: t.url, title: t.title, text: '', sel: '', err: e.message }; }
 }
 

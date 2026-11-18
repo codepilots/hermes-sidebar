@@ -105,31 +105,14 @@ const hermesTabs = new Set();
 // (or a grant): it runs with the user's cookies, the main exfiltration risk.
 const REVIEWER_CLASSES = new Set(['act', 'navigate']);
 
-const RESTRICTED = /^(chrome|edge|brave|about|devtools|chrome-extension|view-source):|^https:\/\/(chromewebstore\.google\.com|chrome\.google\.com\/webstore)/;
-
 async function targetTab(id) {
   const t = Number.isInteger(id)
     ? await chrome.tabs.get(id).catch(() => null)
     : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
   if (!t) throw new Error(Number.isInteger(id) ? `No tab with id ${id}` : 'No active tab');
-  if (!t.url || RESTRICTED.test(t.url)) throw new Error(`Browser pages like ${t.url || 'this one'} cannot be scripted`);
+  if (!t.url || Platform.isRestricted(t.url)) throw new Error(`Browser pages like ${t.url || 'this one'} cannot be scripted`);
   return t;
 }
-
-// Runs in the page with `this` = run_js's result object; returns plain JSON data.
-const SERIALIZE_IN_PAGE = `function () {
-  const node = n => n.nodeType === 1 ? n.outerHTML.slice(0, 2000) : String(n.textContent || '').slice(0, 2000);
-  const replacer = (k, x) =>
-    x instanceof Node ? node(x)
-    : (x instanceof NodeList || x instanceof HTMLCollection) ? Array.from(x).slice(0, 500)
-    : x instanceof Map ? Object.fromEntries(x)
-    : x instanceof Set ? Array.from(x)
-    : typeof x === 'function' ? '[function ' + (x.name || 'anonymous') + ']'
-    : typeof x === 'bigint' ? String(x)
-    : x;
-  try { return JSON.parse(JSON.stringify(this, replacer)); }
-  catch (e) { return String(this); }
-}`;
 
 function waitForLoad(tabId, ms) {
   return new Promise(resolve => {
@@ -143,14 +126,13 @@ function waitForLoad(tabId, ms) {
 }
 
 async function inPage(tabId, func, args = []) {
-  const [r] = await chrome.scripting.executeScript({ target: { tabId }, func, args });
-  return r.result;
+  return Platform.executeInPage(tabId, func, args);
 }
 
 // Call a page-agent.js method in the tab (injected on demand into the extension's
 // isolated world, where element refs are kept).
 async function agent(tabId, method, ...args) {
-  await chrome.scripting.executeScript({ target: { tabId }, files: ['page-agent.js'] });
+  await Platform.injectFile(tabId, 'page-agent.js');
   const r = await inPage(tabId, async (m, a) => {
     try { return { ok: true, value: await globalThis.__hermes[m](...a) }; }
     catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
@@ -184,36 +166,8 @@ const BROWSER_HANDLERS = {
 
   async run_js({ code, tab }, { signal }) {
     const t = await targetTab(tab);
-    const target = { tabId: t.id };
-    try { await chrome.debugger.attach(target, '1.3'); }
-    catch (e) { throw new Error('Could not attach to the tab (DevTools open on it?): ' + e.message); }
-    const detach = () => chrome.debugger.detach(target).catch(() => {});
-    signal?.addEventListener('abort', detach, { once: true });
-    const cdp = (method, params) => chrome.debugger.sendCommand(target, method, params);
-    try {
-      // No replMode: in REPL mode a returned promise is handed back unresolved
-      // (like the DevTools console), so awaitPromise would yield "{}".
-      const r = await cdp('Runtime.evaluate', {
-        expression: code, awaitPromise: true, returnByValue: false, userGesture: true, objectGroup: 'hermes',
-      });
-      if (r.exceptionDetails) {
-        const d = r.exceptionDetails;
-        throw new Error((d.exception && d.exception.description) || d.text || 'Exception');
-      }
-      const v = r.result;
-      if (v.type === 'undefined') return null;
-      if (!v.objectId) return v.value !== undefined ? v.value : (v.unserializableValue || v.description);
-      // Objects: serialize in the page so DOM nodes, NodeLists, Maps and Sets come back readable.
-      const s = await cdp('Runtime.callFunctionOn', {
-        objectId: v.objectId, returnByValue: true, functionDeclaration: SERIALIZE_IN_PAGE,
-      });
-      return s.result.value;
-    } finally {
-      await cdp('Runtime.releaseObjectGroup', { objectGroup: 'hermes' }).catch(() => {});
-      await detach();
-    }
+    return Platform.runJs(t.id, code, signal);
   },
-
   async snapshot({ tab, ...opts }) {
     return agent((await targetTab(tab)).id, 'snapshot', opts);
   },
@@ -263,7 +217,7 @@ const BROWSER_HANDLERS = {
 
   async screenshot() {
     const t = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-    if (!t || !t.url || RESTRICTED.test(t.url)) throw new Error('This page cannot be captured');
+    if (!t || !t.url || Platform.isRestricted(t.url)) throw new Error('This page cannot be captured');
     const dataUrl = await chrome.tabs.captureVisibleTab(t.windowId, { format: 'png' });
     // The plugin saves it and gives Hermes a path for vision_analyze.
     return { tab: t.id, url: t.url, title: t.title, image: { mime: 'image/png', data: dataUrl.split(',', 2)[1] } };
@@ -271,35 +225,9 @@ const BROWSER_HANDLERS = {
 
   async dev_watch({ seconds = 5, reload = false, tab }, { signal }) {
     const t = await targetTab(tab);
-    const target = { tabId: t.id };
-    try { await chrome.debugger.attach(target, '1.3'); }
-    catch (e) { throw new Error('Could not attach to the tab (DevTools open on it?): ' + e.message); }
-    const out = { console: [], errors: [], failed_requests: [] };
-    const cap = (list, item) => { if (list.length < 100) list.push(item); };
-    const fmt = args => (args || []).map(a => a.value !== undefined ? String(a.value) : (a.description || a.type)).join(' ').slice(0, 500);
-    const urls = new Map();
-    const onEvent = (src, method, p) => {
-      if (src.tabId !== t.id) return;
-      if (method === 'Runtime.consoleAPICalled') cap(out.console, { level: p.type, text: fmt(p.args) });
-      else if (method === 'Runtime.exceptionThrown') cap(out.errors, (p.exceptionDetails?.exception?.description || p.exceptionDetails?.text || 'Error').slice(0, 800));
-      else if (method === 'Log.entryAdded' && p.entry.level !== 'verbose') cap(out.console, { level: p.entry.level, text: (p.entry.text || '').slice(0, 500), source: p.entry.source });
-      else if (method === 'Network.requestWillBeSent') urls.set(p.requestId, p.request.url);
-      else if (method === 'Network.responseReceived' && p.response.status >= 400) cap(out.failed_requests, { url: p.response.url.slice(0, 300), status: p.response.status });
-      else if (method === 'Network.loadingFailed' && !p.canceled) cap(out.failed_requests, { url: (urls.get(p.requestId) || '').slice(0, 300), error: p.errorText });
-    };
-    chrome.debugger.onEvent.addListener(onEvent);
-    const cdp = (m, prm) => chrome.debugger.sendCommand(target, m, prm);
-    try {
-      await cdp('Runtime.enable'); await cdp('Log.enable'); await cdp('Network.enable');
-      if (reload) await cdp('Page.reload', { ignoreCache: false });
-      await new Promise(r => { const tm = setTimeout(r, Math.min(Math.max(seconds, 1), 30) * 1000); signal?.addEventListener('abort', () => { clearTimeout(tm); r(); }, { once: true }); });
-    } finally {
-      chrome.debugger.onEvent.removeListener(onEvent);
-      await chrome.debugger.detach(target).catch(() => {});
-    }
+    const out = await Platform.devWatch(t.id, { seconds, reload }, signal);
     return { url: t.url, watched_seconds: seconds, reloaded: !!reload, ...out };
   },
-
   async search_history({ query, days = 30, max = 20 }) {
     if (!chrome.history) throw new Error('History access is off (enable it in the sidebar settings)');
     const items = await chrome.history.search({ text: query, startTime: Date.now() - days * 864e5, maxResults: max });
@@ -320,12 +248,9 @@ const BROWSER_HANDLERS = {
       : await chrome.tabs.update((await chrome.tabs.query({ active: true, currentWindow: true }))[0].id, { url: u.href });
     if (new_tab) {
       hermesTabs.add(t.id);
-      // Keep Hermes's tabs together and easy to close.
-      try {
-        const [g] = await chrome.tabGroups.query({ title: 'Hermes', windowId: t.windowId });
-        const gid = await chrome.tabs.group({ tabIds: [t.id], ...(g ? { groupId: g.id } : { createProperties: { windowId: t.windowId } }) });
-        if (!g) await chrome.tabGroups.update(gid, { title: 'Hermes', color: 'orange' });
-      } catch {}
+      // Keep Hermes's tabs together where the browser supports it (Chrome tab
+      // groups; Firefox has no equivalent, so this is a no-op there).
+      await Platform.groupTab(t);
     }
     // Return once the page has loaded, so a following get_page reads the new page.
     const loaded = await waitForLoad(t.id, 20000);

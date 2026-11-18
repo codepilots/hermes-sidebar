@@ -1,0 +1,58 @@
+{
+  "manifest_version": 2,
+  "name": "Hermes Sidebar",
+  "version": "1.3",
+  "description": "Ask Hermes (Sorrel) about the page you're reading.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "hermes-sidebar@codepilots",
+      "strict_min_version": "115.0"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage",
+    "webRequest",
+    "webRequestBlocking",
+    "contextMenus",
+    "notifications",
+    "<all_urls>",
+    "http://127.0.0.1:8642/*"
+  ],
+  "optional_permissions": [
+    "history",
+    "bookmarks"
+  ],
+  "background": {
+    "scripts": ["platform.js", "background-common.js"],
+    "persistent": true
+  },
+  "sidebar_action": {
+    "default_panel": "panel.html",
+    "default_title": "Ask Hermes about this page",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    },
+    "open_at_install": false
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_security_policy": "script-src 'self'; object-src 'self'",
+  "commands": {
+    "_execute_sidebar_action": {
+      "suggested_key": {
+        "default": "Alt+H"
+      }
+    }
+  }
+}

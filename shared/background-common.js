@@ -1,22 +1,18 @@
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+/* Shared background logic for both browsers. Browser-specific behaviour
+   (panel open/behaviour, Origin-header stripping) lives in platform.js,
+   which is loaded before this file. See chrome/ and firefox/. */
 
-// Hermes api_server rejects unknown Origins (403). Strip Origin only on this extension's
-// own requests to the configured gateway (HTTP and the outrigger WebSocket). The rule
-// follows the endpoint setting, so a remote gateway (e.g. with an outrigger token) works.
 const DEFAULT_ENDPOINT = 'http://127.0.0.1:8642';
-const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Hermes api_server rejects unknown Origins (403). Strip Origin only on this
+// extension's own requests to the configured gateway (HTTP and the outrigger
+// WebSocket). The rule follows the endpoint setting, so a remote gateway works.
 async function syncOriginRule() {
   const { endpoint = DEFAULT_ENDPOINT } = await chrome.storage.local.get('endpoint');
-  let host;
-  try { host = new URL(endpoint).host; } catch { host = new URL(DEFAULT_ENDPOINT).host; }
-  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [1], addRules: [{
-    id: 1, priority: 1,
-    action: { type: 'modifyHeaders', requestHeaders: [{ header: 'origin', operation: 'remove' }] },
-    condition: { regexFilter: `^(https?|wss?)://${esc(host)}/`, initiatorDomains: [chrome.runtime.id],
-                 resourceTypes: ['xmlhttprequest', 'websocket', 'other'] },
-  }] });
+  await Platform.syncOriginRule(endpoint, DEFAULT_ENDPOINT);
 }
+
+Platform.setPanelBehavior();
 syncOriginRule();
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.endpoint) syncOriginRule(); });
 
@@ -32,8 +28,8 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!tab) return;
-  // sidePanel.open must run inside the click's user gesture: call it first.
-  chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {});
+  // Open the panel inside the click's user gesture: call it first.
+  Platform.openPanel(tab.windowId);
   const kind = info.menuItemId.replace('ask-', '');
   chrome.storage.session.set({ pendingAsk: {
     kind, windowId: tab.windowId, ts: Date.now(), pageUrl: info.pageUrl, title: tab.title,
