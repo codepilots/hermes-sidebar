@@ -38,7 +38,7 @@ SECURITY_MODULES = [
     "shared/background-common.js",
     "shared/api-shim.js",
 ]
-DOC_GLOBS = ["AUDIT.md", "shared/README.md"]
+DOC_GLOBS = ["README.md", "AUDIT.md", "shared/README.md"]
 OVERCLAIM_WORDS = ["enforced", "prevents", "cannot", "safe", "guarantee", "provably"]
 
 ANCHOR_RE = re.compile(r"([A-Za-z0-9_./-]+\.(?:py|js|mjs|ts|tsx|jsx|go|rs|rb|java|c|cpp|h|yaml|yml|json|toml|md)):(\d+)(?:-(\d+))?")
