@@ -14,9 +14,9 @@
   would not open its remote-debugging port). On 2026-11-19 the port was load-tested in
   headless Firefox 158.0.1 via geckodriver (temporary add-on, checks executed in the real
   extension context): gaps 1–4 below are now **VERIFIED**, and the load test found and
-  fixed a second port bug (F2). The Chrome regression pass (gap 5) is still NOT RUN —
-  no Chrome/Chromium on the validation host. `web-ext lint` (0 errors) and `node --check`
-  pass on both builds.
+  fixed a second port bug (F2). The Chrome regression pass (gap 5) ran the same day on
+  Chromium 159 (Playwright build, extension loaded unpacked): all five gaps are now
+  **VERIFIED**. `web-ext lint` (0 errors) and `node --check` pass on both builds.
 
 ## Verdict
 
@@ -26,8 +26,8 @@ page element refs are kept out of the page's reach, and same-site fetch is origi
 redirect-checked. **Two concrete bugs were found and fixed**: F1, a Firefox CSP
 regression that silently disabled part of the PII redactor (static review), and F2,
 Firefox's callback-only `chrome.*` breaking every promise-style API call in the shared
-code (runtime load test). The remaining items are design/functional trade-offs left for
-the maintainer, plus the Chrome regression pass that needs a live load.
+code (runtime load test). D1 and D2 are decided and fixed; the remaining items are the
+documented D3/D4 capability limits.
 
 ## Findings
 
@@ -167,7 +167,10 @@ with the system principal so checks run in the real extension context; a local t
 on `127.0.0.1:8765`; WS checks against a standalone aiohttp gateway mounting the **real**
 outrigger `ws_handler` with an Origin-rejecting middleware and a test `auth_token`
 (`127.0.0.1:8643`). Harness scripts, results JSON and screenshots were kept in the
-session scratch dir `sidebar-validate`.
+session scratch dir `sidebar-validate`. The Chrome pass used playwright-core driving the
+full Chromium 159 build with `dist/chrome` loaded unpacked (`--load-extension`,
+`--silent-debugger-extension-api`); checks ran in the service worker and the panel page
+opened as a tab (`chrome-extension://<id>/panel.html`).
 
 | # | Check | Result |
 |---|-------|--------|
@@ -175,22 +178,25 @@ session scratch dir `sidebar-validate`.
 | 2 | page-agent persistence across `executeScript` injections | **PASS** — `__hermes` marker survives separate injections; element ref `e4` resolved and clicked in a later injection; `fill` works; password values masked in snapshots; email field tagged `⟪pii:email:…⟫` |
 | 3 | Async bridge (`executeInPage` / `runJs`) | **PASS** — args/objects round-trip via `runtime.sendMessage`; DOM serialized (h1 `outerHTML`, input array) |
 | 4 | Origin-strip on the gateway WebSocket | **PASS** — extension WS opens, selects `hermes-outrigger.v1`, hello → welcome against the real plugin with Origin rejection active; a MAIN-world page WS with the same key is refused (1006). HTTP contrast: extension fetch 404 (Origin accepted) vs request with page Origin 403 |
-| 5 | Chrome regression (side panel, CDP tools, tab groups, DNR) | **NOT RUN** — no Chrome/Chromium on the validation host |
+| 5 | Chrome regression (side panel, CDP tools, tab groups, DNR) | **PASS** — Chromium 159: `sidePanel.getPanelBehavior` shows `openPanelOnActionClick: true` and `sidePanel.open` succeeds; CDP `run_js` (object + async IIFE + DOM serialization) and `dev_watch` (console ticks + 404s) work; the tab lands in the orange 'Hermes' group; the DNR rule strips Origin (an extension GET reaches the plugin handler — 401 without a key, not the 403 an Origin would draw) and follows the endpoint setting; extension WS hello → welcome, main-world page WS refused (1006) |
+
+The shared security checks were re-run on Chrome as well: redaction/WASM, page-agent
+persistence, element refs, fill and password masking all pass, with zero page errors.
 
 Also verified: the panel UI renders end-to-end (storage-driven init, tab status line,
 restricted-page detection, key warning); `chrome.*` promise **and** callback styles both
 work through the shim (F2); `web-ext lint` 0 errors; `node --check` on both builds.
 
-**Limits of this verification:** the panel was driven as a tab, not through the
-`sidebar_action` chrome — the sidebar open/close UX itself is untested. No exploit-style
-dynamic testing was done. The WS attach was validated against the plugin's handler in a
-test gateway, not the production Hermes gateway (whose outrigger plugin is not enabled
-on the validation host).
+**Limits of this verification:** on Firefox the panel was driven as a tab — the
+`sidebar_action` open/close UX itself is untested (Chrome's `sidePanel.open` was verified
+programmatically). No exploit-style dynamic testing was done. The WS attach was validated
+against the plugin's handler in a test gateway, not the production Hermes gateway (whose
+outrigger plugin is not enabled on the validation host).
 
 ## Recommendations
 
-- F1 and F2 are landed; Firefox runtime checks 1–4 pass. Run the Chrome regression pass
-  (gap 5) on a host with Chrome before merge.
+- F1 and F2 are landed; all five runtime checks pass on both browsers (Firefox 158,
+  Chromium 159).
 - D1 (option c) and D2 are decided and implemented, pinned by `tests/outrigger-policy.test.mjs`
   (`node --test tests/outrigger-policy.test.mjs`).
 - Keep the README's Firefox limitations (D3/D4) in sync with any adapter changes.
