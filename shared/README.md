@@ -31,7 +31,7 @@ Produces `dist/chrome/` and `dist/firefox/`, each a complete, loadable extension
 1. Run `node build.mjs`.
 2. Open `chrome://extensions`, turn on Developer mode.
 3. Click "Load unpacked" and select `dist/chrome`.
-4. Open the extension's settings (Connection) and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint) but **requires a paired `otr_…` token** — the API key is accepted only for loopback endpoints, so the owner credential never crosses the network.
+4. Open the extension's settings (Connection) and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint) but **requires a paired `otr_…` token** — the browser-tools connection uses the API key only for loopback endpoints. Known gap (finding N1, see `AUDIT.md`): the plain chat path still sends a configured API key to a remote endpoint, so never use the API key with a remote gateway.
 
 ## Install — Firefox (temporary)
 

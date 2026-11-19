@@ -42,9 +42,11 @@ injected hook).
 
 A remote endpoint **requires a paired client token**: on the gateway machine run
 `hermes outrigger pair --user <id>` and paste the `otr_…` token instead of the API key.
-The API key is accepted only for loopback endpoints (`127.0.0.1`, `localhost`, `::1`),
-so the owner credential stays on the Hermes machine. Prefer `https://`/`wss://` for
-remote endpoints — plain `ws://` is unencrypted.
+The browser-tools connection uses the API key only with loopback endpoints (`127.0.0.1`,
+`localhost`, `::1`). **Known gap (finding N1 in [AUDIT.md](AUDIT.md#credential-policy)):**
+the plain chat path still sends a configured API key to a remote endpoint, so never
+put your API key in for a remote gateway. Prefer `https://`/`wss://` for remote
+endpoints — plain `ws://` is unencrypted.
 
 Browser tools and platform chat (slash commands, `/model`, interactive prompts) need
 the [hermes-outrigger](https://github.com/codepilots/hermes-outrigger) plugin enabled on
