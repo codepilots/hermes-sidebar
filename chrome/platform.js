@@ -1,6 +1,11 @@
 /* Chrome/Chromium platform adapter. Loaded before background-common.js (in the
    service worker) and before browser-tools.js/panel.js (in the panel page).
-   Implements the browser-specific primitives the shared code calls via Platform. */
+   Implements the browser-specific primitives the shared code calls via Platform.
+   Audit: see AUDIT.md#origin-strip (DNR rule) and AUDIT.md#browser-adapters.
+   Security-relevant here: the declarativeNetRequest rule strips Origin ONLY on
+   this extension's own requests (initiatorDomains) to the configured gateway
+   host; isRestricted marks pages that must never be scripted/captured; run_js
+   and dev_watch attach the debugger to the target tab only. */
 
 // Runs in the page with `this` = run_js's result object; returns plain JSON data.
 const SERIALIZE_IN_PAGE = `function () {

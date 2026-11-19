@@ -1,5 +1,12 @@
 /* Browser tools offered to Hermes through the outrigger connection.
-   policy "auto" runs without asking; "confirm" needs the user's Allow in the panel. */
+   Audit: see AUDIT.md#tool-handlers (execution guards and sinks).
+   policy "auto" runs without asking; "confirm" needs the user's Allow in the panel
+   (decision: tool-gate.js; wiring: panel.js handleCall).
+   Responsibility: declare the tools and execute approved calls. Guards here:
+   targetTab refuses restricted/browser pages; close_tab only closes tabs Hermes
+   opened (hermesTabs); open_url accepts http(s) only; screenshot refuses restricted
+   pages. Deliberately does NOT decide approval (tool-gate.js) or redact results
+   (panel.js wires redactor.redactDeep around every handler). */
 
 const BROWSER_TOOLS = [
   { name: 'get_page', policy: 'auto',
@@ -90,20 +97,12 @@ const BROWSER_TOOLS = [
 
 const BROWSER_TOOL_POLICY = Object.fromEntries(BROWSER_TOOLS.map(t => [t.name, t.policy]));
 
-// Approval classes for "confirm" tools. Grants and reviewer auto-approval work per class.
-const TOOL_CLASS = { click: 'act', fill: 'act', fill_form: 'act', open_url: 'navigate', run_js: 'code', fetch_as_user: 'navigate', reveal: 'reveal',
-  screenshot: 'capture', dev_watch: 'debug', search_history: 'personal', search_bookmarks: 'personal' };
-const CLASS_LABEL = { act: 'page actions', navigate: 'opening pages', code: 'running code', reveal: 'revealing data',
-  capture: 'screenshots', debug: 'debugging', personal: 'history and bookmarks' };
-// Classes that never get a per-site grant: they reach beyond one site.
-const NO_GRANT_CLASSES = new Set(['reveal', 'personal']);
+// Approval vocabulary (TOOL_CLASS, CLASS_LABEL, NO_GRANT_CLASSES, REVIEWER_CLASSES)
+// and the decision logic live in tool-gate.js, loaded before this file.
 // Tools that need an optional permission; offered only once it is granted.
 const OPTIONAL_TOOL_PERMISSION = { search_history: 'history', search_bookmarks: 'bookmarks' };
 // Tabs Hermes opened (open_url): the only ones close_tab may close.
 const hermesTabs = new Set();
-// Classes Hermes's reviewer may approve without a card. Code always needs the user
-// (or a grant): it runs with the user's cookies, the main exfiltration risk.
-const REVIEWER_CLASSES = new Set(['act', 'navigate']);
 
 async function targetTab(id) {
   const t = Number.isInteger(id)

@@ -202,3 +202,26 @@ outrigger plugin is not enabled on the validation host).
 - Keep the README's Firefox limitations (D3/D4) in sync with any adapter changes.
 - Consider a tiny self-test that asserts arcjet detected a known email/phone after load, so a
   future CSP/WASM regression fails loudly instead of silently (the current `catch` hides it).
+
+## Addendum (2026-11-19): finding N1 — D1 enforcement gap on the chat path
+
+Found during the AUDIT.md readability rewrite (claims pass). Earlier records above are
+left as written.
+
+- **Where:** `shared/panel.js` `send()`, the Chat Completions fallback (`fetch` to
+  `/v1/chat/completions` with `Authorization: Bearer <key>`).
+- **What:** D1 (option c) was implemented in the outrigger connection (`_connect`) and the
+  settings test-connection (`testWS`), as recorded above. The plain chat path was not
+  covered. With a remote endpoint and the API key, `_connect` refuses, so the panel is not
+  attached, `usePlatform()` is false, and `send()` falls through to the fetch, which
+  sends the API key to the remote endpoint (in cleartext on `http:`). The options help text
+  ("the API key never leaves the Hermes machine") overstates the behaviour for the same
+  reason.
+- **Severity:** Medium. It defeats the decided D1 rule in a reachable configuration
+  (remote endpoint plus API key, which the settings page lets you save).
+- **Status:** **Open.** Not fixed in the documentation change, per AGENTS.md
+  (refactor/docs ≠ remediation). Suggested fix: apply `isLoopbackEndpoint` in `send()`
+  before the fetch (refuse with the same message as `_connect`), correct the options help
+  text, and extend `tests/outrigger-policy.test.mjs` to cover the chat path.
+- **Interim guidance:** use a paired `otr_` token for any remote gateway. The README and
+  AUDIT.md now state the gap.

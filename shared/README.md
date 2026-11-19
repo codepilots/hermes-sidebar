@@ -31,7 +31,7 @@ Produces `dist/chrome/` and `dist/firefox/`, each a complete, loadable extension
 1. Run `node build.mjs`.
 2. Open `chrome://extensions`, turn on Developer mode.
 3. Click "Load unpacked" and select `dist/chrome`.
-4. Open the extension's settings (Connection) and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint) but **requires a paired `otr_…` token** — the API key is accepted only for loopback endpoints, so the owner credential never crosses the network.
+4. Open the extension's settings (Connection) and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint) but **requires a paired `otr_…` token** — the browser-tools connection uses the API key only for loopback endpoints. Known gap (finding N1, see `AUDIT.md`): the plain chat path still sends a configured API key to a remote endpoint, so never use the API key with a remote gateway.
 
 ## Install — Firefox (temporary)
 
@@ -143,7 +143,7 @@ the panel with it filled in. A notification tells you when a reply that took ove
 \* unless Hermes's reviewer approves it, or you allowed that kind of action on the site for this conversation.
 
 Refs come from `snapshot` and are kept in the extension's isolated world, so the
-page cannot read or forge them; a ref goes stale when its element is removed.
+page has no access to read or forge them; a ref goes stale when its element is removed.
 `fetch_as_user` refuses other sites and redirects to them. See `docs/proposals.md`
 for further integration ideas.
 
@@ -178,12 +178,12 @@ placeholders such as `⟦EMAIL_1⟧`. Detection uses `@arcjet/redact` and
 - "🛡 N redacted" on your message and on tool lines lists what was hidden.
 - Per-category switches and a list of sites where nothing is redacted.
 
-Best effort, not a guarantee: unusual formats and names can slip through (name
+Best effort: unusual formats and names can slip through (name
 detection is English and heuristic), and Hermes's own server-side tools see pages
 unredacted. `run_js` results are redacted, but code can transform values.
 
 `run_js` attaches Chrome's debugger to the tab for the duration of the call, so
-Chrome shows its "started debugging this browser" bar briefly. It cannot run on
+Chrome shows its "started debugging this browser" bar briefly. It does not run on
 `chrome://` pages or the Web Store, or while DevTools is attached to the tab.
 
 ## Permissions

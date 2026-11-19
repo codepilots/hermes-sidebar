@@ -5,7 +5,9 @@
    work (the callback is invoked with the resolved value), and events and
    synchronous members (runtime.getURL, getManifest, …) pass through untouched.
    No-op on Chrome, which has no browser.* namespace and whose chrome.* already
-   returns promises. Must load BEFORE any code that calls chrome.*. */
+   returns promises. Must load BEFORE any code that calls chrome.*.
+   Audit: see AUDIT.md#api-shim — a broken shim silently disables every
+   promise-style security path (storage reads, the bridge, the Origin rule). */
 (() => {
   const B = globalThis.browser;
   if (!B || !B.runtime || !B.runtime.getURL || !globalThis.chrome) return;

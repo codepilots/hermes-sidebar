@@ -1,3 +1,10 @@
+/* Settings page — connection, keys/tokens and tool/redaction preferences.
+   Audit: see AUDIT.md#credential-policy (testWS enforces the same loopback-only
+   API-key policy as the live connection) and AUDIT.md#settings-storage.
+   Responsibility: read/write chrome.storage.local settings and test the gateway
+   connection. Deliberately does NOT store secrets anywhere but chrome.storage.local
+   (the browser's extension storage) and never sends the key anywhere except the
+   configured endpoint's WS subprotocol. */
 const $ = id => document.getElementById(id);
 const e = $('endpoint'), k = $('key'), st = $('st'), bt = $('browserTools'), ra = $('reviewerAuto'), pc = $('platformChat'),
   nd = $('notifyDone'), pt = $('personalTools'), rd = $('redact'), cats = $('redactCats'), skip = $('redactSkip');

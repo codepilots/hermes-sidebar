@@ -1,0 +1,46 @@
+# Documentation freshness gate (refactor-for-human-audit). Required status check:
+# the JOB name below ("docs-audit") is what branch protection must require.
+name: docs-audit
+on:
+  pull_request:
+    paths:
+      - "shared/**"
+      - "chrome/**"
+      - "firefox/**"
+      - "README.md"
+      - "AUDIT.md"
+      - "docs/**"
+      - "scripts/audit_anchor_check.py"
+      - ".github/workflows/docs-audit.yml"
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  docs-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Anchor freshness + inline hub pointers + overclaim words on shipping
+      # surfaces (frozen evidence in shared/docs/ is exempt by design).
+      - name: Audit hub freshness gate
+        run: python scripts/audit_anchor_check.py --extract-mermaid .mermaid-tmp --strict-overclaim
+      # Every mermaid block must render.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install mermaid-cli
+        run: npm install -g @mermaid-js/mermaid-cli
+      - name: Render mermaid diagrams
+        run: |
+          # --no-sandbox: Chromium's sandbox cannot launch where unprivileged
+          # user namespaces are restricted (some hosts/runners); harmless elsewhere.
+          printf '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > puppeteer-ci.json
+          shopt -s nullglob
+          for f in .mermaid-tmp/*.mmd; do
+            echo "rendering $f"
+            mmdc -i "$f" -o "${f%.mmd}.svg" -p puppeteer-ci.json --quiet
+          done
