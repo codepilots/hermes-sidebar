@@ -31,7 +31,7 @@
     "bookmarks"
   ],
   "background": {
-    "scripts": ["platform.js", "background-common.js"],
+    "scripts": ["api-shim.js", "platform.js", "background-common.js"],
     "persistent": true
   },
   "sidebar_action": {
