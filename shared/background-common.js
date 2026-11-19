@@ -1,6 +1,9 @@
 /* Shared background logic for both browsers. Browser-specific behaviour
    (panel open/behaviour, Origin-header stripping) lives in platform.js,
-   which is loaded before this file. See chrome/ and firefox/. */
+   which is loaded before this file. See chrome/ and firefox/.
+   Audit: see AUDIT.md#origin-strip (rule lifecycle) and AUDIT.md#context-menu.
+   syncOriginRule registers the strip rule at startup and re-registers it whenever
+   the endpoint setting changes, so the rule always follows the configured gateway. */
 
 const DEFAULT_ENDPOINT = 'http://127.0.0.1:8642';
 

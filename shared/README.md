@@ -143,7 +143,7 @@ the panel with it filled in. A notification tells you when a reply that took ove
 \* unless Hermes's reviewer approves it, or you allowed that kind of action on the site for this conversation.
 
 Refs come from `snapshot` and are kept in the extension's isolated world, so the
-page cannot read or forge them; a ref goes stale when its element is removed.
+page has no access to read or forge them; a ref goes stale when its element is removed.
 `fetch_as_user` refuses other sites and redirects to them. See `docs/proposals.md`
 for further integration ideas.
 
@@ -178,12 +178,12 @@ placeholders such as `⟦EMAIL_1⟧`. Detection uses `@arcjet/redact` and
 - "🛡 N redacted" on your message and on tool lines lists what was hidden.
 - Per-category switches and a list of sites where nothing is redacted.
 
-Best effort, not a guarantee: unusual formats and names can slip through (name
+Best effort: unusual formats and names can slip through (name
 detection is English and heuristic), and Hermes's own server-side tools see pages
 unredacted. `run_js` results are redacted, but code can transform values.
 
 `run_js` attaches Chrome's debugger to the tab for the duration of the call, so
-Chrome shows its "started debugging this browser" bar briefly. It cannot run on
+Chrome shows its "started debugging this browser" bar briefly. It does not run on
 `chrome://` pages or the Web Store, or while DevTools is attached to the tab.
 
 ## Permissions

@@ -1,6 +1,12 @@
 // Injected into pages (in the extension's isolated world) by browser-tools.js.
+// Audit: see AUDIT.md#in-page-agent (page <-> extension boundary).
 // Element refs live here, out of the page's reach: the page cannot read, list or
 // forge them. Safe to inject repeatedly; state persists for the page's lifetime.
+// Trust boundary: runs with extension privileges in the ISOLATED world on an
+// untrusted page. fetchAsUser enforces same-origin AND re-checks the final URL
+// after redirects; password field values are masked in snapshots; form fields
+// are tagged ⟪pii:type:value⟫ so the redactor can catch them by semantics.
+// Deliberately does NOT redact (the extension side does) or decide approval.
 (() => {
   if (globalThis.__hermes) return;
 

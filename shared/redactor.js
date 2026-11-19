@@ -1,4 +1,13 @@
 /* Personal-data redaction for everything the sidebar sends to Hermes.
+   Audit: see AUDIT.md#redaction (detectors, placeholders, the reveal path).
+   Trust boundary: outbound text (page content, tool args/results, errors) is
+   replaced with placeholders HERE, in the browser; the value map (byPh) never
+   leaves. Deliberately does NOT decide what may be revealed (panel.js revealCall
+   asks the user per value) and does not sanitize markup (markdown.js).
+   Failure contract: redaction stays ON for invalid/empty URLs (fail-closed);
+   only an explicitly skipped site turns it off. An arcjet WASM failure is caught
+   and console.warn'd while the other detectors keep working — a known gap the
+   security review recommends a loud self-test for.
 
    Detection:
    - @arcjet/redact (vendor/arcjet-redact.js): email, phone, card number, IP.

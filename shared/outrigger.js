@@ -1,9 +1,17 @@
 /* Outrigger client: attaches this sidebar to a Hermes session so Hermes can call
    browser tools during a turn. Talks to the hermes-outrigger gateway plugin over
    a WebSocket (protocol v1, see hermes-outrigger docs/spec.md section 7).
+   Audit: see AUDIT.md#gateway-connection and AUDIT.md#credential-policy.
 
    Browsers cannot set headers on a WebSocket, so the API key travels as the
-   subprotocol "bearer.<key>"; the server selects "hermes-outrigger.v1". */
+   subprotocol "bearer.<key>"; the server selects "hermes-outrigger.v1".
+   Credential policy (decided D1 option c): the owner API key is accepted only for
+   loopback endpoints; a remote gateway requires a paired otr_ token. Enforced in
+   _connect before any socket is created (no retry on a policy refusal) and in the
+   settings test-connection (options.js testWS). Client identity (D2) follows the
+   actual browser. Deliberately does NOT authenticate the gateway's replies beyond
+   the WS origin (the gateway is trusted once attached) and does not redact —
+   panel.js wires the redactor around every call/result. */
 
 // Client identity follows the actual browser (review D2): Platform.name where the
 // adapter is loaded, else the browser.* namespace (Firefox-only) decides — the

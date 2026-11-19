@@ -2,7 +2,13 @@
    (background page) and before browser-tools.js/panel.js (sidebar page).
    Firefox has no debugger/CDP, tabGroups or sidePanel API, so those are
    reimplemented here with tabs.executeScript, a messaging bridge, content-script
-   hooks + webRequest, and sidebar_action. The shared code is unchanged. */
+   hooks + webRequest, and sidebar_action. The shared code is unchanged.
+   Audit: see AUDIT.md#origin-strip (blocking webRequest) and AUDIT.md#browser-adapters.
+   Security-relevant here: stripOrigin removes Origin ONLY when the request comes
+   from this extension (originUrl/documentUrl) AND targets the configured gateway
+   host; the async bridge only accepts answers from its own injected code filtered
+   by a per-call id; dev_watch's main-world hook is a debugging aid whose buffer a
+   hostile page can spoof (documented limit, no privilege boundary crossed). */
 
 // DOM-aware replacer for run_js results (mirrors the Chrome CDP serializer).
 const REPLACER = `function (k, x) {

@@ -1,6 +1,11 @@
-// Markdown -> safe HTML for replies: marked (GFM) + highlight.js, sanitized by DOMPurify.
-// Raw HTML in the source is shown as text, not rendered; links open in a new tab;
-// images load only over https, without a referrer.
+// Markdown -> sanitized HTML for replies: marked (GFM) + highlight.js, DOMPurify.
+// Audit: see AUDIT.md#reply-sanitization (model output -> DOM boundary).
+// Raw HTML in the source is shown as text, not rendered; links open in a new tab
+// (https/mailto only, noopener noreferrer); images load only over https, without a
+// referrer; only disabled task-list checkboxes survive. Failure contract: if parse
+// or sanitize throws, the reply falls back to fully escaped text (fail-closed).
+// Deliberately does NOT redact PII (redactor.js) — renderInto rehydrates placeholders
+// for the user's eyes only after sanitization.
 (function () {
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 

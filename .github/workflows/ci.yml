@@ -1,0 +1,19 @@
+# Unit suite: the approval-gate decision matrix and the credential/identity policy.
+# Required status check: the JOB name below ("test").
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Unit tests
+        run: node --test tests/tool-gate.test.mjs tests/outrigger-policy.test.mjs
