@@ -1,12 +1,62 @@
 # Hermes Sidebar
 
-A Chromium side panel for asking Hermes (Sorrel) about the page you're reading.
+A browser side panel for asking Hermes (Sorrel) about the page you're reading.
+Runs on **Chromium** (Chrome/Edge/Brave — MV3 side panel) and **Firefox** (MV2 sidebar).
 
-## Install (unpacked)
+## Repository layout
 
-1. Open `chrome://extensions`, turn on Developer mode.
-2. Click "Load unpacked" and select this folder.
-3. Open the extension's settings (Connection) and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint).
+- `shared/` — all browser-agnostic code (panel/options/notebook UI, the Hermes and
+  outrigger client, markdown, redaction, prompts, vendored libs). Single source of truth.
+- `chrome/` — Chromium-specific only: `manifest.json` (MV3), `platform.js`
+  (side panel, `declarativeNetRequest` Origin-strip, CDP `run_js`/`dev_watch`, tab
+  groups, `scripting`), and `background.js` (service-worker wrapper).
+- `firefox/` — Firefox-specific only: `manifest.json` (MV2) and `platform.js`
+  (`sidebar_action`, blocking `webRequest` Origin-strip, `tabs.executeScript`
+  `run_js` via an async messaging bridge, content-script + `webRequest` `dev_watch`).
+- `build.mjs` — assembles `dist/chrome` and `dist/firefox` from `shared/` plus the
+  browser's own files. **Only the browser-specific bits are duplicated; everything
+  else is shared.** The shared code calls a small `Platform` adapter for the few
+  primitives that differ between browsers.
+
+## Build
+
+```
+node build.mjs
+```
+
+Produces `dist/chrome/` and `dist/firefox/`, each a complete, loadable extension.
+
+## Install — Chromium (unpacked)
+
+1. Run `node build.mjs`.
+2. Open `chrome://extensions`, turn on Developer mode.
+3. Click "Load unpacked" and select `dist/chrome`.
+4. Open the extension's settings (Connection) and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint) but **requires a paired `otr_…` token** — the API key is accepted only for loopback endpoints, so the owner credential never crosses the network.
+
+## Install — Firefox (temporary)
+
+1. Run `node build.mjs`.
+2. Open `about:debugging#/runtime/this-firefox`.
+3. Click "Load Temporary Add-on…" and select `dist/firefox/manifest.json`.
+4. Open the sidebar (toolbar button or **Alt+H**) and set the Connection key as above.
+
+Temporary add-ons unload when Firefox closes. For a permanent install, sign the
+build via addons.mozilla.org, or use Firefox Developer Edition / Nightly with
+`xpinstall.signatures.required=false`.
+
+## Firefox notes / limitations
+
+- Targets **Manifest V2**: blocking `webRequest` strips the `Origin` header on
+  gateway calls; `tabs.executeScript` runs page code (Firefox has no CDP/debugger API).
+- `run_js` uses `tabs.executeScript` plus an async messaging bridge instead of CDP;
+  results are serialized the same way (DOM nodes, NodeLists, Maps, Sets).
+- `dev_watch` captures console/errors via a main-world page hook and failed requests
+  via `webRequest`. Pages with a strict `script-src` CSP block the inline hook, so
+  console capture may be empty there (network capture still works). Console capture
+  starts after any reload.
+- No tab groups: `open_url` opens tabs without grouping them (Firefox has no
+  equivalent of Chrome's tab groups).
+- No Chrome-style "started debugging this browser" banner.
 
 ## How it works
 
@@ -139,6 +189,12 @@ Chrome shows its "started debugging this browser" bar briefly. It cannot run on
 ## Permissions
 
 It requests `<all_urls>`, `tabs`, `scripting`, `storage`, `debugger` (for `run_js` and `dev_watch`), `contextMenus`, `tabGroups` and `notifications`; `history` and `bookmarks` are optional and only requested when you turn them on. It can read any page you ask about, including logged-in pages. Turn off browser tools in settings to stop Hermes reading pages and calling tools in the browser (the sidebar then attaches the current page to your questions instead).
+
+## Development
+
+`node build.mjs` builds both browsers into `dist/`. Policy tests (credential
+policy D1 and client identity D2 from `docs/security-review.md`) run with
+`node --test tests/outrigger-policy.test.mjs` — no dependencies beyond Node.
 
 ## License
 

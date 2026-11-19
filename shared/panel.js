@@ -117,7 +117,7 @@ async function showTab() {
   try { const u = new URL(t.url); web = /^https?:$/.test(u.protocol); host = web ? u.hostname.replace(/^www\./, '') : u.protocol === 'file:' ? 'local file' : ''; } catch {}
   // Chrome's own pages (settings, extensions, new tab, the Web Store) can't be read by extensions.
   const restricted = !web && !/^file:/.test(t.url || '') || /^https:\/\/chrome(webstore)?\.google\.com\/webstore/.test(t.url || '');
-  if (restricted) host = "Chrome page — Hermes can't read this one";
+  if (restricted) host = "Browser page — Hermes can't read this one";
   const summary = `active tab ${t.id}: "${(t.title || '').slice(0, 120)}" ${(t.url || '').slice(0, 160)}`;
   outrigger.setContext((await redactor.redact(summary, { url: t.url })).text);
   if (document.querySelector('header.bar').classList.contains('note-mode')) return;
@@ -141,8 +141,8 @@ async function sha256(s) {
 async function grab() {
   const t = await tab();
   try {
-    const [r] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => ({ sel: String(getSelection()), text: document.body ? document.body.innerText : '' }) });
-    return { url: t.url, title: t.title, ...r.result };
+    const r = await Platform.executeInPage(t.id, () => ({ sel: String(getSelection()), text: document.body ? document.body.innerText : '' }));
+    return { url: t.url, title: t.title, ...r };
   } catch (e) { return { url: t.url, title: t.title, text: '', sel: '', err: e.message }; }
 }
 
