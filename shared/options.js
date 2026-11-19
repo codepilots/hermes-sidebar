@@ -78,6 +78,12 @@ $('reveal').onclick = () => { k.type = k.type === 'password' ? 'text' : 'passwor
 // /v1/outrigger/ws (docs/remote-access.md in hermes-outrigger).
 function testWS(base, key) {
   return new Promise(resolve => {
+    // Same policy as the live connection (review D1, option c): a remote gateway
+    // requires a paired token; the API key is loopback-only.
+    const remote = !/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(base);
+    if (remote && !/^otr_/.test(key)) {
+      return resolve({ ok: false, msg: 'Remotely, use a paired token (otr_…) — the API key only works on the Hermes machine.' });
+    }
     let ws;
     try { ws = new WebSocket(base.replace(/^http/, 'ws') + '/v1/outrigger/ws', ['hermes-outrigger.v1', 'bearer.' + key]); }
     catch { return resolve({ ok: false, msg: "That address doesn't look right" }); }
@@ -94,10 +100,7 @@ function testWS(base, key) {
       clearTimeout(t);
       if (ev.code !== 1006) return resolve({ ok: false, msg: 'Closed by the gateway' });
       // The browser hides the HTTP status of a refused WebSocket: say what it can be.
-      const remote = !/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(base);
-      resolve({ ok: false, msg: remote && !/^otr_/.test(key)
-        ? 'Refused or unreachable. Remotely, use a paired token (the API key only works on the Hermes machine).'
-        : 'Refused or unreachable: check the address, the key or token, and that the outrigger plugin is enabled.' });
+      resolve({ ok: false, msg: 'Refused or unreachable: check the address, the key or token, and that the outrigger plugin is enabled.' });
     };
   });
 }

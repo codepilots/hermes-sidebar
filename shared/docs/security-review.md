@@ -35,8 +35,8 @@ the maintainer, plus the Chrome regression pass that needs a live load.
 |----|----------|------|--------|
 | F1 | High (privacy) | Firefox CSP blocks WASM → PII redaction silently fails | **Fixed** (`90590db`) |
 | F2 | High (functional) | Firefox `chrome.*` is callback-only; shared code awaits promises | **Fixed** (`api-shim.js`) |
-| D1 | Medium (design) | API key in WS subprotocol; plaintext over remote `ws://` | Discuss |
-| D2 | Low | Outrigger hello hardcodes Chromium identity on Firefox | Discuss |
+| D1 | Medium (design) | API key in WS subprotocol; plaintext over remote `ws://` | **Decided (c) + fixed**: token required off-loopback |
+| D2 | Low | Outrigger hello hardcodes Chromium identity on Firefox | **Fixed**: identity follows the browser |
 | D3 | Low | Firefox `run_js` accepts expressions/IIFEs only | Discuss |
 | D4 | Low | Firefox `dev_watch` capture limits (CSP/spoof/reload) | Documented |
 
@@ -79,26 +79,34 @@ the maintainer, plus the Chrome regression pass that needs a live load.
   promises and callback style still fires; the bridge, `dev_watch`, storage-driven panel
   init and the background Origin rule all pass the runtime checks below.
 
-### D1 — API key travels in the WebSocket subprotocol (design)
+### D1 — API key travels in the WebSocket subprotocol (DECIDED + FIXED)
 
-- **Where:** `shared/outrigger.js:72` (`new WebSocket(url, ['hermes-outrigger.v1', 'bearer.' + key])`),
-  `shared/options.js:82` (test connection), `options.js:97–100` (remote warning).
+- **Where:** `shared/outrigger.js` (`_connect`, `isLoopbackEndpoint`),
+  `shared/options.js` (`testWS`), `shared/options.html` (key help text).
 - **What:** browsers cannot set headers on a WebSocket, so the key is sent as the
   `bearer.<key>` subprotocol. On the default local gateway (`http://127.0.0.1:8642`) this is
   loopback. For a **remote** endpoint over `http:`/`ws:` (no TLS) the key is observable on
-  the wire. The UI already advises a paired `otr_…` token for remote use, and the API key is
-  documented as local-only.
-- **Why not changed:** inherent browser limitation; mitigations exist. Options to discuss:
-  refuse/warn on non-`wss` remote endpoints, or require a paired token for any non-loopback
-  host. This is a functional/policy change, left to the maintainer.
+  the wire.
+- **Decision (Autumn, 2026-11-19): option c** — the API key is the owner credential and is
+  accepted only for loopback endpoints (`127.0.0.1`, `localhost`, `::1`). Any non-loopback
+  gateway requires a paired `otr_…` token (scoped, revocable). Enforced in BOTH the live
+  connection (`Outrigger._connect` refuses before creating a socket, reports a clear
+  offline status, and does not retry — a settings change calls `start()` again) and the
+  settings test-connection (`testWS`). README and options help text state the policy.
+- **Pinned by:** `tests/outrigger-policy.test.mjs` (remote+key refused, remote+token
+  allowed, loopback variants allowed, recovery after settings change, testWS parity).
 
-### D2 — Outrigger hello misidentifies Firefox (low)
+### D2 — Outrigger hello misidentifies Firefox (FIXED)
 
-- **Where:** `shared/outrigger.js:78–79` — `kind: 'chromium-extension'`, default
-  `label = 'Chromium side panel'` (`outrigger.js:18`).
-- **What:** on Firefox the client still reports a Chromium identity to the gateway. Cosmetic
-  for chat, but the gateway could branch on `kind`. Suggested fix: derive `kind`/`label` from
-  `Platform.name`. Left unchanged because it is server-visible behaviour (functional).
+- **Where:** `shared/outrigger.js` — `PLATFORM_NAME` / `CLIENT_KIND` / `CLIENT_LABEL`.
+- **What:** the hello used to hardcode `kind: 'chromium-extension'` and the default label
+  'Chromium side panel' on every browser. Now the identity derives from `Platform.name`
+  where the adapter is loaded, and from the `browser.*` namespace otherwise (the notebook
+  page loads `outrigger.js` without the platform adapter): Firefox reports
+  `firefox-extension` / 'Firefox sidebar'; Chrome is unchanged. Explicit labels (the
+  notebook's 'Hermes notes tab') are preserved.
+- **Pinned by:** `tests/outrigger-policy.test.mjs` (both adapters, the notebook fallback,
+  and the no-signal Chromium default).
 
 ### D3 — Firefox `run_js` capability gap (low)
 
@@ -183,7 +191,8 @@ on the validation host).
 
 - F1 and F2 are landed; Firefox runtime checks 1–4 pass. Run the Chrome regression pass
   (gap 5) on a host with Chrome before merge.
-- Decide D1 (remote `wss`/token policy) and D2 (platform identity) — both small, server-visible.
+- D1 (option c) and D2 are decided and implemented, pinned by `tests/outrigger-policy.test.mjs`
+  (`node --test tests/outrigger-policy.test.mjs`).
 - Keep the README's Firefox limitations (D3/D4) in sync with any adapter changes.
 - Consider a tiny self-test that asserts arcjet detected a known email/phone after load, so a
   future CSP/WASM regression fails loudly instead of silently (the current `catch` hides it).

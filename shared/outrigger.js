@@ -5,6 +5,25 @@
    Browsers cannot set headers on a WebSocket, so the API key travels as the
    subprotocol "bearer.<key>"; the server selects "hermes-outrigger.v1". */
 
+// Client identity follows the actual browser (review D2): Platform.name where the
+// adapter is loaded, else the browser.* namespace (Firefox-only) decides — the
+// notebook page loads this file without the platform adapter.
+const PLATFORM_NAME = globalThis.Platform?.name
+  || (typeof browser !== 'undefined' && browser.runtime?.getURL ? 'firefox' : 'chrome');
+const CLIENT_KIND = PLATFORM_NAME === 'firefox' ? 'firefox-extension' : 'chromium-extension';
+const CLIENT_LABEL = PLATFORM_NAME === 'firefox' ? 'Firefox sidebar' : 'Chromium side panel';
+
+// Review D1 (decided: option c): the API key is the owner credential and stays on
+// the Hermes machine. A non-loopback gateway must be reached with a paired otr_
+// token (scoped, revocable) — the key would otherwise cross the network inside the
+// WS subprotocol, in cleartext on ws://.
+function isLoopbackEndpoint(endpoint) {
+  let host = '';
+  try { host = new URL(endpoint).hostname.toLowerCase(); } catch {}
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+}
+const REMOTE_NEEDS_TOKEN = 'Remote gateways need a paired token (otr_…) — the API key only works on the Hermes machine';
+
 class Outrigger {
   /**
    * @param {object} o
@@ -15,7 +34,7 @@ class Outrigger {
    * @param {Function} o.onChat    (frame) => void for Outrigger-platform chat.* frames
    * @param {Function} o.onWelcome (welcome) => void, after every (re)attach
    */
-  constructor({ tools, onCall, onCancel, onStatus, onChat, onWelcome, onDoc, name = 'hermes-sidebar', label = 'Chromium side panel' }) {
+  constructor({ tools, onCall, onCancel, onStatus, onChat, onWelcome, onDoc, name = 'hermes-sidebar', label = CLIENT_LABEL }) {
     Object.assign(this, { tools, onCall, onCancel, onStatus, onChat, onWelcome, onDoc, name, label });
     this.platformAvailable = false;
     this.ws = null; this.cfg = null; this.stopped = true;
@@ -66,6 +85,11 @@ class Outrigger {
 
   _connect() {
     const { endpoint, key } = this.cfg;
+    if (!isLoopbackEndpoint(endpoint) && !String(key || '').startsWith('otr_')) {
+      // Policy refusal: retrying cannot fix it. A settings change calls start() again.
+      this._status('offline', REMOTE_NEEDS_TOKEN);
+      return;
+    }
     const url = endpoint.replace(/\/$/, '').replace(/^http/, 'ws') + '/v1/outrigger/ws';
     this._status('connecting');
     let ws;
@@ -76,7 +100,7 @@ class Outrigger {
       // Protocol 2 adds the Outrigger platform: chat through Hermes's messaging pipeline.
       type: 'hello', protocol: 2, capabilities: ['chat', 'edits', 'model_picker', 'choices', 'clarify', 'approvals', 'media', 'notebook'],
       client: { name: this.name, version: chrome.runtime.getManifest().version,
-                kind: 'chromium-extension', label: this.label, concurrency: 1 },
+                kind: CLIENT_KIND, label: this.label, concurrency: 1 },
       session_id: this.cfg.sessionId, tools: this.tools,
       ...(this.redaction ? { redaction: this.redaction } : {}),
     });

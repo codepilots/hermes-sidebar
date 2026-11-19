@@ -42,8 +42,9 @@
               <svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </div>
-          <small><code>API_SERVER_KEY</code> from <code>~/.hermes/.env</code>, or a client token from
-            <code>hermes outrigger pair --user &lt;id&gt;</code> (<code>otr_…</code>: chat goes through the Outrigger platform only).</small>
+          <small><code>API_SERVER_KEY</code> from <code>~/.hermes/.env</code> (local gateway only), or a client token from
+            <code>hermes outrigger pair --user &lt;id&gt;</code> (<code>otr_…</code>: chat goes through the Outrigger platform only).
+            A remote gateway requires a paired token — the API key never leaves the Hermes machine.</small>
         </div>
         <div class="actions"><button class="btn" id="test">Test connection</button><span id="st"></span></div>
       </div>

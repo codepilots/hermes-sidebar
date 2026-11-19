@@ -31,7 +31,7 @@ Produces `dist/chrome/` and `dist/firefox/`, each a complete, loadable extension
 1. Run `node build.mjs`.
 2. Open `chrome://extensions`, turn on Developer mode.
 3. Click "Load unpacked" and select `dist/chrome`.
-4. Open the extension's settings (Connection) and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint).
+4. Open the extension's settings (Connection) and paste your Hermes `API_SERVER_KEY`, or a client token from `hermes outrigger pair --user <id>` (`otr_…`; chat then goes only through the Outrigger platform, as that user). The endpoint defaults to `http://127.0.0.1:8642`; a remote gateway works too (the Origin rule follows the endpoint) but **requires a paired `otr_…` token** — the API key is accepted only for loopback endpoints, so the owner credential never crosses the network.
 
 ## Install — Firefox (temporary)
 
@@ -189,6 +189,12 @@ Chrome shows its "started debugging this browser" bar briefly. It cannot run on
 ## Permissions
 
 It requests `<all_urls>`, `tabs`, `scripting`, `storage`, `debugger` (for `run_js` and `dev_watch`), `contextMenus`, `tabGroups` and `notifications`; `history` and `bookmarks` are optional and only requested when you turn them on. It can read any page you ask about, including logged-in pages. Turn off browser tools in settings to stop Hermes reading pages and calling tools in the browser (the sidebar then attaches the current page to your questions instead).
+
+## Development
+
+`node build.mjs` builds both browsers into `dist/`. Policy tests (credential
+policy D1 and client identity D2 from `docs/security-review.md`) run with
+`node --test tests/outrigger-policy.test.mjs` — no dependencies beyond Node.
 
 ## License
 
