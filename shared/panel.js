@@ -1,3 +1,20 @@
+/* Panel — the chat UI and the wiring around the security controls.
+   Audit: see AUDIT.md#tool-call-wiring (tool calls, reveal, media, memory).
+   Responsibility: render the conversation, drive the outrigger connection, and
+   wire tool calls to the approval gate (tool-gate.js), the redactor (redactor.js)
+   and the handlers (browser-tools.js).
+   Trust boundary: gateway frames and model output enter here; model text reaches
+   the DOM only through renderMarkdown (markdown.js), media is built from checked
+   blob:/https: URLs, and tool results leave the browser only through
+   redactor.redactDeep — binary image payloads excepted (screenshots are not
+   redacted) and the per-value-approved reveal path below. Deliberately does NOT
+   decide approval policy (tool-gate.js), detect PII (redactor.js) or sanitize
+   markup (markdown.js).
+   Security-relevant wiring: handleCall (run_js args are never unredacted; results
+   and errors are redacted), revealCall (the one deliberate unredacted path,
+   per-value approved), renderMedia (blob: or https: only, no-referrer), and
+   save/restore (conversation, grants and the redaction map live only in
+   chrome.storage.session — memory, cleared when the browser closes). */
 const $ = id => document.getElementById(id);
 const log = $('log'), q = $('q'), form = $('f'), sendBtn = $('send'), empty = $('empty');
 const MAX = 60000;
@@ -270,8 +287,8 @@ function confirmCard(m, targetText, origin) {
     let grant = null;
     const cls = TOOL_CLASS[m.tool];
     // No site-wide grant from a flagged card (this one call only), nor for classes that
-    // reach beyond one site (history and bookmarks).
-    if (cls && origin && !flagged && !NO_GRANT_CLASSES.has(cls)) {
+    // reach beyond one site (history and bookmarks). Rule: tool-gate.js canOfferGrant.
+    if (canOfferGrant({ cls, origin, flagged })) {
       grant = document.createElement('button'); grant.className = 'btn-grant';
       grant.textContent = `Allow ${CLASS_LABEL[cls]} on ${hostOf(origin)}`;
       grant.title = 'For the rest of this conversation. Starting a new conversation clears it.';
@@ -341,9 +358,7 @@ async function cardText(m) {
   return null;  // fall back to the raw arguments
 }
 
-// Tools whose arguments reach a site: putting a real value there discloses it, so a
-// call that uses redacted values always asks (no reviewer approval, no grant).
-const DISCLOSING_TOOLS = new Set(['fill', 'fill_form', 'open_url', 'fetch_as_user']);
+// Tools whose arguments reach a site: see DISCLOSING_TOOLS in tool-gate.js.
 
 async function handleCall(m) {
   if (m.tool === 'reveal') return revealCall(m);
@@ -361,22 +376,26 @@ async function handleCall(m) {
   let via = null;
   if (BROWSER_TOOL_POLICY[m.tool] !== 'auto' || disclosing) {
     const cls = TOOL_CLASS[m.tool], origin = await targetOrigin(m);
-    const key = cls + '|' + origin;
-    const flagged = m.review?.verdict === 'deny';  // always put to the user
+    // The decision itself is pure and lives in tool-gate.js (audited there);
+    // this wiring supplies the live grants/settings and acts on the mode.
+    const decision = decideApproval({
+      policy: BROWSER_TOOL_POLICY[m.tool], disclosing, reviewVerdict: m.review?.verdict,
+      cls, origin, granted: grants.has(grantKey(cls, origin)), reviewerAuto,
+    });
     m.piiUsed = disclosing ? piiUsed : [];
-    if (disclosing) {
+    if (decision.mode === 'disclose') {
       m.cardText = await cardText(m);
       const verdict = await confirmCard(m, await describeTarget(m), '');
       if (verdict !== 'allow') return { ok: false, error: verdict === 'deny' ? 'The user denied this action.' : 'Not approved in time.' };
       piiUsed.forEach(ph => redactor.shared.add(ph));
-    } else if (!flagged && cls && origin && grants.has(key)) {
+    } else if (decision.mode === 'granted') {
       via = ['granted', `You allowed ${CLASS_LABEL[cls]} on ${hostOf(origin)} for this conversation`];
-    } else if (reviewerAuto && m.review?.verdict === 'approve' && REVIEWER_CLASSES.has(cls)) {
+    } else if (decision.mode === 'reviewed') {
       via = ['reviewed', 'Approved by Hermes\'s reviewer: ' + (m.review.reason || '')];
     } else {
       m.cardText = await cardText(m);
       const verdict = await confirmCard(m, await describeTarget(m), origin);
-      if (verdict === 'grant') grants.add(key);
+      if (verdict === 'grant') grants.add(grantKey(cls, origin));
       else if (verdict !== 'allow') return { ok: false, error: verdict === 'deny' ? 'The user denied this action.' : 'Not approved in time.' };
     }
   }
@@ -462,7 +481,7 @@ async function revealCall(m) {
   const unknown = asked.filter(ph => !redactor.lookup(ph));
   if (!known.length) return { ok: true, content: { revealed: {}, withheld: asked, note: 'None of these placeholders exist in this conversation.' } };
   let chosen, via = null;
-  if (m.review?.verdict !== 'deny' && known.every(ph => redactor.always.has(ph))) {
+  if (canAutoReveal({ reviewVerdict: m.review?.verdict, placeholders: known, always: redactor.always })) {
     chosen = known; via = ['allowed', 'You chose not to be asked again for these values'];
   } else {
     const r = await revealCard(m, known);
